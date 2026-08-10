@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مركز العمليات — JCOCC</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="logo-sm">JCOCC</div>
+                <span>مركز العمليات</span>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <span class="nav-icon">📊</span> لوحة التحكم
+                </a>
+                <a href="#" class="nav-item" data-view="incidents">
+                    <span class="nav-icon">🚨</span> الحوادث
+                    <span class="badge" id="openIncidentsBadge">0</span>
+                </a>
+                <a href="#" class="nav-item" data-view="major">
+                    <span class="nav-icon">🔴</span> حوادث جسيمة
+                </a>
+                <a href="#" class="nav-item" data-view="journeys">
+                    <span class="nav-icon">📍</span> رحلة المEnumerator
+                </a>
+                <a href="#" class="nav-item" data-view="health">
+                    <span class="nav-icon">💚</span> صحة الأنظمة
+                </a>
+                <a href="#" class="nav-item" data-view="knowledge">
+                    <span class="nav-icon">📚</span> قاعدة المعرفة
+                </a>
+                <a href="#" class="nav-item" data-view="ai">
+                    <span class="nav-icon">🤖</span> المساعد الذكي
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info" id="userInfo">
+                    <div class="user-avatar">A</div>
+                    <div>
+                        <div class="user-name" id="userName">—</div>
+                        <div class="user-role" id="userRole">—</div>
+                    </div>
+                </div>
+                <button class="btn-logout" id="logoutBtn">خروج</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="top-bar-right">
+                    <h1 id="viewTitle">لوحة التحكم</h1>
+                    <span class="live-indicator"><span class="pulse"></span> مباشر</span>
+                </div>
+                <div class="top-bar-left">
+                    <span class="datetime" id="datetime"></span>
+                    <button class="btn-icon" id="notifBtn" title="الإشعارات">🔔</button>
+                </div>
+            </header>
+
+            <!-- Dashboard View -->
+            <section class="view active" id="view-dashboard">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon red">🚨</div>
+                        <div class="stat-data">
+                            <span class="stat-value" id="statOpen">—</span>
+                            <span class="stat-label">حوادث مفتوحة</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">🔴</div>
+                        <div class="stat-data">
+                            <span class="stat-value" id="statMajor">—</span>
+                            <span class="stat-label">حوادث جسيمة</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">✅</div>
+                        <div class="stat-data">
+                            <span class="stat-value" id="statAuto">—</span>
+                            <span class="stat-label">حل تلقائي اليوم</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue">👥</div>
+                        <div class="stat-data">
+                            <span class="stat-value" id="statBlocked">—</span>
+                            <span class="stat-label">Enumerators محجوبين</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">⏱️</div>
+                        <div class="stat-data">
+                            <span class="stat-value" id="statMTTR">—</span>
+                            <span class="stat-label">متوسط الحل (دقيقة)</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon teal">📈</div>
+                        <div class="stat-data">
+                            <span class="stat-value" id="statSLA">—</span>
+                            <span class="stat-label">الالتزام بـ SLA %</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3>الحوادث الأخيرة</h3>
+                            <button class="btn-sm" onclick="switchView('incidents')">عرض الكل</button>
+                        </div>
+                        <div class="panel-body" id="recentIncidents"></div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3>صحة المحافظات</h3>
+                        </div>
+                        <div class="panel-body" id="govHealth"></div>
+                    </div>
+                    <div class="panel wide">
+                        <div class="panel-header">
+                            <h3>صحة الأنظمة</h3>
+                        </div>
+                        <div class="panel-body" id="systemHealthDash"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Incidents View -->
+            <section class="view" id="view-incidents">
+                <div class="toolbar">
+                    <select id="filterPriority">
+                        <option value="">كل الأولويات</option>
+                        <option value="p1">P1 — حرج</option>
+                        <option value="p2">P2 — عالي</option>
+                        <option value="p3">P3 — متوسط</option>
+                        <option value="p4">P4 — منخفض</option>
+                    </select>
+                    <select id="filterGov">
+                        <option value="">كل المحافظات</option>
+                    </select>
+                    <button class="btn-sm" id="refreshIncidents">تحديث</button>
+                </div>
+                <div class="incidents-table" id="incidentsTable"></div>
+            </section>
+
+            <!-- Major Incidents View -->
+            <section class="view" id="view-major">
+                <div class="major-banner">
+                    <h2>🔴 مركز الحوادث الجسيمة</h2>
+                    <p>إدارة الحوادث الوطنية والمحافظات — بروتوكol NIMS</p>
+                </div>
+                <div id="majorIncidents"></div>
+            </section>
+
+            <!-- Journeys View -->
+            <section class="view" id="view-journeys">
+                <div class="toolbar">
+                    <label><input type="checkbox" id="blockedOnly"> المحجوبين فقط</label>
+                    <button class="btn-sm" id="refreshJourneys">تحديث</button>
+                </div>
+                <div class="journeys-grid" id="journeysGrid"></div>
+            </section>
+
+            <!-- System Health View -->
+            <section class="view" id="view-health">
+                <div class="health-grid" id="healthGrid"></div>
+            </section>
+
+            <!-- Knowledge Base View -->
+            <section class="view" id="view-knowledge">
+                <div id="knowledgeList"></div>
+            </section>
+
+            <!-- AI Assistant View -->
+            <section class="view" id="view-ai">
+                <div class="ai-chat">
+                    <div class="ai-messages" id="aiMessages">
+                        <div class="ai-msg bot">
+                            <strong>🤖 مساعد JCOCC</strong>
+                            <p>مرحباً! أنا مساعد العمليات الذكي. يمكنني مساعدتك في تشخيص الحوادث، اقتراح الحلول، والإجابة على أسئلة التشغيل.</p>
+                        </div>
+                    </div>
+                    <form class="ai-input" id="aiForm">
+                        <input type="text" id="aiQuestion" placeholder="اسأل عن حادث، مشكلة مزامنة، أو أي موضوع تشغيلي..." autocomplete="off">
+                        <button type="submit">إرسال</button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Incident Detail Modal -->
+    <div class="modal" id="incidentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">—</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer">
+                <button class="btn-sm" id="btnDiagnose">🤖 تشخيص AI</button>
+                <button class="btn-sm btn-success" id="btnResolve">✅ تم الحل</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

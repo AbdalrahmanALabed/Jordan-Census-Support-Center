@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.py[cod]
+*.db
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+jcsc-web/node_modules/
+jcsc-web/.next/

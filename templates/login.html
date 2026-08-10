@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الدخول — {{ app_name }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-brand">
+            <div class="logo">JCOCC</div>
+            <h1>مركز عمليات التعداد الوطني</h1>
+            <p>Jordan Census Operations Control Center</p>
+            <div class="login-features">
+                <span>🔍 مراقبة ذكية</span>
+                <span>🤖 تشخيص AI</span>
+                <span>⚡ حل تلقائي</span>
+            </div>
+        </div>
+        <form class="login-form" id="loginForm">
+            <h2>تسجيل الدخول</h2>
+            <div class="form-group">
+                <label for="username">اسم المستخدم</label>
+                <input type="text" id="username" name="username" required placeholder="support.manager" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="password">كلمة المرور</label>
+                <input type="password" id="password" name="password" required placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <div class="error-msg" id="errorMsg"></div>
+            <button type="submit" class="btn-primary">دخول</button>
+            <div class="demo-accounts">
+                <p>حسابات تجريبية:</p>
+                <code>support.manager / manager123</code>
+                <code>support.l1 / support123</code>
+                <code>admin / admin123</code>
+            </div>
+        </form>
+    </div>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const errorMsg = document.getElementById('errorMsg');
+            errorMsg.textContent = '';
+            const form = new FormData(e.target);
+            try {
+                const resp = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: form.get('username'),
+                        password: form.get('password'),
+                    }),
+                });
+                if (!resp.ok) {
+                    errorMsg.textContent = 'بيانات الدخول غير صحيحة';
+                    return;
+                }
+                const data = await resp.json();
+                localStorage.setItem('jcocc_token', data.access_token);
+                window.location.href = '/';
+            } catch {
+                errorMsg.textContent = 'خطأ في الاتصال بالخادم';
+            }
+        });
+    </script>
+</body>
+</html>

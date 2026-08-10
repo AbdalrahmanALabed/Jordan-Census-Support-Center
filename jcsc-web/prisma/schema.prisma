@@ -1,0 +1,513 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  SUPPORT_COORDINATOR
+  SUPPORT_MANAGER
+  SUPPORT_L1
+  SUPPORT_L2
+  DEVELOPER
+  DATABASE
+  DEVOPS
+  GIS
+  SUPERVISOR
+  CALL_CENTER
+}
+
+enum ReportStatus {
+  NEW
+  UNDER_REVIEW
+  CLASSIFIED
+  CONVERTED
+  REJECTED
+}
+
+enum ReportClassification {
+  BUG
+  USER_MISTAKE
+  TRAINING_ISSUE
+  CONFIGURATION_ISSUE
+  FEATURE_REQUEST
+  COMPLAINT
+  QUESTION
+  DUPLICATE
+  OUT_OF_SCOPE
+  MAJOR_INCIDENT
+}
+
+enum IssueStatus {
+  RECEIVED
+  ASSIGNED
+  IN_PROGRESS
+  NEED_INFO
+  WAITING_DEPLOYMENT
+  READY_FOR_TESTING
+  RETURNED
+  CLOSED
+}
+
+enum IssuePriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum AttachmentType {
+  IMAGE
+  VIDEO
+  VOICE
+  LOG
+  PDF
+}
+
+enum AuditAction {
+  VIEW
+  CREATE
+  EDIT
+  DELETE
+  ASSIGN
+  CLOSE
+  APPROVE
+  REJECT
+  STATUS_CHANGE
+  LOGIN
+  LOGOUT
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+}
+
+enum CaseType {
+  BUG
+  TRAINING_ISSUE
+  USER_MISTAKE
+  CONFIGURATION_ISSUE
+  QUESTION
+  FEATURE_REQUEST
+  COMPLAINT
+  INCIDENT
+  TASK
+  INTERNAL_NOTE
+}
+
+enum CaseStatus {
+  OPEN
+  UNDER_REVIEW
+  AWAITING_APPROVAL
+  IN_PROGRESS
+  WAITING_DEPLOYMENT
+  READY_FOR_TESTING
+  RESOLVED
+  CLOSED
+  MERGED
+}
+
+enum CaseSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum DeploymentStatus {
+  NOT_STARTED
+  QUEUED
+  IN_PROGRESS
+  DEPLOYED
+}
+
+enum TestingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PASSED
+  FAILED
+}
+
+enum KnowledgeValue {
+  HIGH
+  MEDIUM
+  LOW
+  NONE
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  phone     String?
+  jobTitle  String?
+  role      UserRole
+  team      String?
+  specialtyTags String @default("[]")
+  governorate   String?
+  directManagerId String?
+  shift         String?
+  isActive      Boolean @default(true)
+  notifyInApp   Boolean @default(true)
+  notifyEmail   Boolean @default(true)
+  notifySms     Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  directManager   User?  @relation("UserManager", fields: [directManagerId], references: [id])
+  directReports   User[] @relation("UserManager")
+
+  reportsSubmitted Report[]       @relation("ReportSupervisor")
+  reportsReviewed  Report[]       @relation("ReportReviewer")
+  assignedIssues   Issue[]        @relation("IssueAssignee")
+  issueComments    IssueComment[]
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  userPermissions  UserPermission[]
+
+  casesCreated     Case[]           @relation("CaseCreator")
+  casesAssigned    Case[]           @relation("CaseDeveloper")
+  casesSolved      Case[]           @relation("CaseSolver")
+  caseComments     CaseComment[]
+  caseDecisions    CaseDecision[]
+}
+
+model Permission {
+  id          String @id @default(cuid())
+  key         String @unique
+  label       String
+  screen      String
+  action      String
+
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  role         UserRole
+  permissionId String
+  granted      Boolean    @default(true)
+
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId])
+}
+
+model UserPermission {
+  id           String  @id @default(cuid())
+  userId       String
+  permissionId String
+  granted      Boolean @default(true)
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+}
+
+model Report {
+  id                    String                @id @default(cuid())
+  number                String                @unique
+  description           String
+  status                ReportStatus          @default(NEW)
+  governorate           String
+  district              String?
+  center                String?
+  enumeratorsAffected   Int                   @default(1)
+  supervisorId          String
+  reviewedById          String?
+  reviewedAt            DateTime?
+  classification        ReportClassification?
+  rejectionReason       String?
+  aiSuggestedCategory   String?
+  aiConfidence          Float?
+  recommendedTeam       String?
+  recommendedPriority   IssuePriority?
+  convertedIssueId      String?               @unique
+  submissionChannel     String                @default("app")
+  affectedSystem        String                @default("FIELD_OPERATIONS")
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  supervisor     User              @relation("ReportSupervisor", fields: [supervisorId], references: [id])
+  reviewedBy     User?             @relation("ReportReviewer", fields: [reviewedById], references: [id])
+  convertedIssue Issue?            @relation(fields: [convertedIssueId], references: [id])
+  attachments    ReportAttachment[]
+  linkedIssues   IssueReport[]
+  sourceCases    Case[]             @relation("CaseSourceReport")
+}
+
+model ReportAttachment {
+  id        String         @id @default(cuid())
+  reportId  String
+  name      String
+  type      AttachmentType
+  url       String
+  size      String?
+  createdAt DateTime       @default(now())
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+model Issue {
+  id              String         @id @default(cuid())
+  number          String         @unique
+  title           String
+  description     String?
+  status          IssueStatus    @default(RECEIVED)
+  priority        IssuePriority  @default(MEDIUM)
+  category        String
+  team            String
+  governorate     String
+  enumeratorsAffected Int @default(1)
+  assigneeId      String?
+  slaTargetAt     DateTime?
+  resolutionNote  String?
+  rootCause       String?
+  closeReason     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  assignee    User?              @relation("IssueAssignee", fields: [assigneeId], references: [id])
+  sourceReport Report?
+  reports     IssueReport[]
+  comments    IssueComment[]
+  attachments IssueAttachment[]
+  timeline    IssueTimelineEvent[]
+  checklist   IssueChecklistItem[]
+  linkedCases Case[]               @relation("CaseLinkedIssue")
+}
+
+model IssueReport {
+  id       String @id @default(cuid())
+  issueId  String
+  reportId String
+
+  issue  Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([issueId, reportId])
+}
+
+model IssueComment {
+  id        String   @id @default(cuid())
+  content   String
+  issueId   String
+  authorId  String
+  isInternal Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  issue  Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id])
+}
+
+model IssueAttachment {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  issueId   String
+  createdAt DateTime @default(now())
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+}
+
+model IssueTimelineEvent {
+  id        String   @id @default(cuid())
+  action    String
+  details   String?
+  issueId   String
+  actorId   String?
+  createdAt DateTime @default(now())
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+}
+
+model IssueChecklistItem {
+  id        String   @id @default(cuid())
+  label     String
+  completed Boolean  @default(false)
+  issueId   String
+  sortOrder Int      @default(0)
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+}
+
+model RoutingRule {
+  id                      String               @id @default(cuid())
+  keywords                String
+  recommendedTeam         String
+  recommendedClassification ReportClassification
+  priority                IssuePriority
+  autoConvertAllowed      Boolean              @default(false)
+  enabled                 Boolean              @default(true)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+}
+
+model Notification {
+  id             String              @id @default(cuid())
+  title          String
+  message        String
+  type           String
+  channel        NotificationChannel @default(IN_APP)
+  level          String              @default("info")
+  actionRequired Boolean             @default(false)
+  issueNumber    String?
+  isRead         Boolean             @default(false)
+  readAt         DateTime?
+  userId         String
+  entityType     String?
+  entityId       String?
+  createdAt      DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model NotificationDebounce {
+  id                 String   @id @default(cuid())
+  userId             String
+  type               String
+  pendingCount       Int      @default(1)
+  lastInAppId        String?
+  lastSentAt         DateTime @default(now())
+
+  @@unique([userId, type])
+}
+
+model KnowledgeArticle {
+  id         String   @id @default(cuid())
+  title      String
+  content    String
+  category   String
+  tags       String   @default("[]")
+  sourceIssueId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  action     AuditAction
+  entityType String
+  entityId   String?
+  details    String?
+  userId     String?
+  ipAddress  String?
+  createdAt  DateTime    @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}
+
+model SystemConfig {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
+
+model Case {
+  id                    String            @id @default(cuid())
+  number                String            @unique
+  title                 String
+  description           String
+  caseType              CaseType          @default(BUG)
+  status                CaseStatus        @default(OPEN)
+  priority              IssuePriority     @default(MEDIUM)
+  severity              CaseSeverity      @default(MEDIUM)
+  sourceReportId        String?
+  linkedIssueId         String?
+  affectedUsers         Int               @default(1)
+  affectedGovernorates  String            @default("[]")
+  affectedSystem        String
+  suggestedTeam         String?
+  assignedTeam          String?
+  assignedDeveloperId   String?
+  assignedAt            DateTime?
+  deploymentStatus      DeploymentStatus  @default(NOT_STARTED)
+  testingStatus         TestingStatus     @default(NOT_STARTED)
+  resolutionNotes       String?
+  resolutionType        String?
+  timeSpentMinutes      Int?
+  solvedById            String?
+  knowledgeArticleId    String?
+  knowledgeValue        KnowledgeValue?
+  aiConfidence          Float?
+  aiSuggestedTeam       String?
+  aiClassification      String?
+  aiBugTitle            String?
+  aiBugDescription      String?
+  duplicateOfCaseId     String?
+  mergedIntoCaseId      String?
+  createdById           String
+  governorate           String
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  sourceReport      Report?            @relation("CaseSourceReport", fields: [sourceReportId], references: [id])
+  linkedIssue       Issue?             @relation("CaseLinkedIssue", fields: [linkedIssueId], references: [id])
+  assignedDeveloper User?              @relation("CaseDeveloper", fields: [assignedDeveloperId], references: [id])
+  solvedBy          User?              @relation("CaseSolver", fields: [solvedById], references: [id])
+  createdBy         User               @relation("CaseCreator", fields: [createdById], references: [id])
+  comments          CaseComment[]
+  timeline          CaseTimelineEvent[]
+  decisions         CaseDecision[]
+  attachments       CaseAttachment[]
+}
+
+model CaseComment {
+  id         String   @id @default(cuid())
+  caseId     String
+  content    String
+  authorId   String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  case   Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+}
+
+model CaseTimelineEvent {
+  id        String   @id @default(cuid())
+  caseId    String
+  action    String
+  details   String?
+  actorId   String?
+  actorName String?
+  createdAt DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model CaseDecision {
+  id           String   @id @default(cuid())
+  caseId       String
+  decision     String
+  reason       String?
+  decidedById  String?
+  decidedByName String?
+  aiConfidence Float?
+  createdAt    DateTime @default(now())
+
+  case      Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  decidedBy User? @relation(fields: [decidedById], references: [id])
+}
+
+model CaseAttachment {
+  id         String         @id @default(cuid())
+  caseId     String
+  name       String
+  type       AttachmentType
+  url        String
+  size       String?
+  uploadedBy String?
+  createdAt  DateTime       @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}

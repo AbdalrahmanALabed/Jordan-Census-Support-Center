@@ -17,6 +17,7 @@ import { mockPrefixedTicketNumber } from "@/lib/ticket-numbers";
 import { queueEmail } from "@/lib/email/engine";
 import { ASSIGNEE_NAMES, sortAssigneesByName } from "@/lib/assignees";
 import { isTechnicalAssigneeRole } from "@/lib/developer-specialties";
+import { withBasePath } from "@/lib/base-path";
 
 export interface CaseFilters {
   search?: string;
@@ -34,7 +35,7 @@ function delay(ms = 100) {
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
-    const res = await fetch(path, {
+    const res = await fetch(withBasePath(path), {
       ...init,
       headers: { "Content-Type": "application/json", ...init?.headers },
     });
@@ -49,7 +50,7 @@ type ApiResult<T> = { ok: true; data: T } | { ok: false; status: number; error?:
 
 async function apiFetchResult<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   try {
-    const res = await fetch(path, {
+    const res = await fetch(withBasePath(path), {
       ...init,
       headers: { "Content-Type": "application/json", ...init?.headers },
     });

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Upload, X, ImageIcon, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { withBasePath } from "@/lib/base-path";
 
 export interface UploadedFile {
   url: string;
@@ -16,7 +17,7 @@ export interface UploadedFile {
 export async function uploadFile(file: File): Promise<UploadedFile> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch("/api/upload", { method: "POST", body: form });
+  const res = await fetch(withBasePath("/api/upload"), { method: "POST", body: form });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? "فشل الرفع");

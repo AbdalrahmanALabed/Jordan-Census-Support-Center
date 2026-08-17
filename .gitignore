@@ -9,3 +9,4 @@ build/
 .venv/
 jcsc-web/node_modules/
 jcsc-web/.next/
+*.zip

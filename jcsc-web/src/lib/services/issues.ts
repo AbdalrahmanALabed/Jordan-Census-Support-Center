@@ -1,6 +1,7 @@
 import type { Issue, IssueStatus, IssuePriority, OperationsStats } from "@/lib/types";
 import { mockIssues } from "@/lib/mock-data";
 import { apiFetchResult, shouldUseMockFallback } from "@/lib/api-client";
+import { withBasePath } from "@/lib/base-path";
 
 function delay(ms = 100) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -47,7 +48,7 @@ export async function updateIssueStatus(
   id: string,
   data: { status: IssueStatus; comment?: string; closeReason?: string; resolutionNote?: string }
 ): Promise<Issue> {
-  const res = await fetch(`/api/issues/${id}`, {
+  const res = await fetch(withBasePath(`/api/issues/${id}`), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -64,7 +65,7 @@ export async function addIssueComment(
   content: string,
   isInternal = true
 ): Promise<{ id: string; content: string; authorName: string; createdAt: string }> {
-  const res = await fetch(`/api/issues/${id}`, {
+  const res = await fetch(withBasePath(`/api/issues/${id}`), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "add_comment", content, isInternal }),
@@ -81,7 +82,7 @@ export async function toggleChecklistItem(
   itemId: string,
   completed: boolean
 ): Promise<void> {
-  const res = await fetch(`/api/issues/${id}`, {
+  const res = await fetch(withBasePath(`/api/issues/${id}`), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "toggle_checklist", itemId, completed }),

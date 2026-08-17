@@ -1,4 +1,5 @@
 import { getCases, getRecentCaseActivity } from "@/lib/services/cases";
+import { withBasePath } from "@/lib/base-path";
 import {
   toSimpleCaseStatus,
   CASE_TYPE_LABELS,
@@ -89,7 +90,7 @@ type CaseSummaryStats = {
 
 async function fetchCaseSummaryStats(): Promise<CaseSummaryStats | null> {
   try {
-    const res = await fetch("/api/cases/summary");
+    const res = await fetch(withBasePath("/api/cases/summary"));
     if (!res.ok) return null;
     return (await res.json()) as CaseSummaryStats;
   } catch {

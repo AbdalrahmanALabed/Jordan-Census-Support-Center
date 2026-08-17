@@ -1,6 +1,7 @@
 import type { Notification } from "@/lib/types";
 import type { EscalationNotification } from "@/lib/operations";
 import { apiFetchResult, shouldUseMockFallback } from "@/lib/api-client";
+import { withBasePath } from "@/lib/base-path";
 
 export interface NotificationListResponse {
   notifications: Array<
@@ -27,12 +28,12 @@ export async function fetchNotifications(
 }
 
 export async function markNotificationRead(id: string): Promise<boolean> {
-  const res = await fetch(`/api/notifications/${id}`, { method: "PATCH" });
+  const res = await fetch(withBasePath(`/api/notifications/${id}`), { method: "PATCH" });
   return res.ok;
 }
 
 export async function markAllNotificationsRead(): Promise<boolean> {
-  const res = await fetch("/api/notifications", {
+  const res = await fetch(withBasePath("/api/notifications"), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "mark_all_read" }),

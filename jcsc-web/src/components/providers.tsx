@@ -6,6 +6,7 @@ import { SessionProvider } from "next-auth/react";
 import { useState } from "react";
 import { AuthSync } from "@/components/auth/auth-sync";
 import { ToastProvider } from "@/components/ui/toast";
+import { BASE_PATH } from "@/lib/base-path";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -21,7 +22,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <SessionProvider>
+    <SessionProvider basePath={`${BASE_PATH}/api/auth`}>
       <AuthSync />
       <QueryClientProvider client={queryClient}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>

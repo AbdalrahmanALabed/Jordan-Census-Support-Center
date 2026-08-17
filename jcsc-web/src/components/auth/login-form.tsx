@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { JordanCensusLogo } from "@/components/brand/jordan-census-logo";
 import { cn } from "@/lib/utils";
+import { withBasePath } from "@/lib/base-path";
 
 const DEMO_PASSWORD = "jcsc2026";
 
@@ -111,7 +112,7 @@ function FieldGroup({
 
 export function LoginForm() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
+  const callbackUrl = withBasePath(searchParams.get("callbackUrl") ?? "/dashboard");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -148,7 +149,7 @@ export function LoginForm() {
         return;
       }
 
-      window.location.assign(result.url ?? callbackUrl);
+      window.location.assign(withBasePath(result.url ?? callbackUrl));
     } catch {
       setError("تعذّر إكمال تسجيل الدخول — حاول مرة أخرى");
       setLoading(false);

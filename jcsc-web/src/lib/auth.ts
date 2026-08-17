@@ -4,6 +4,7 @@ import { compare } from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { getPermissionsForUser } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
+import { BASE_PATH } from "@/lib/base-path";
 
 declare module "next-auth" {
   interface Session {
@@ -75,7 +76,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   pages: {
-    signIn: "/login",
+    signIn: `${BASE_PATH}/login`,
   },
   session: {
     strategy: "jwt",

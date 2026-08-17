@@ -1,8 +1,9 @@
 import { withAuth } from "next-auth/middleware";
+import { BASE_PATH } from "@/lib/base-path";
 
 export default withAuth({
   pages: {
-    signIn: "/login",
+    signIn: `${BASE_PATH}/login`,
   },
 });
 

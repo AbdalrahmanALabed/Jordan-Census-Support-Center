@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { requireSession } from "@/lib/api-auth";
+import { withBasePath } from "@/lib/base-path";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED = [
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     await writeFile(path.join(uploadsDir, filename), buffer);
 
     return NextResponse.json({
-      url: `/uploads/${filename}`,
+      url: withBasePath(`/uploads/${filename}`),
       name: file.name,
       size: file.size,
       mime: file.type,

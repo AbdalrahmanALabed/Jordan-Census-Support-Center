@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
+import { withBasePath } from "@/lib/base-path";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { useQuery } from "@tanstack/react-query";
@@ -196,7 +197,7 @@ export function Topbar({ title }: TopbarProps) {
               size="icon"
               className={cn(iconBtn, "hover:text-red-400 hover:bg-red-500/15")}
               aria-label="تسجيل الخروج"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
             >
               <LogOut className="h-4 w-4" />
             </Button>

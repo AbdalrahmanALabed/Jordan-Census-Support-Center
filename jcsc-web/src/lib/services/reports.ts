@@ -43,6 +43,7 @@ function delay(ms = 100) {
 
 
 import { apiFetchResult, apiFetchOrThrow, shouldUseMockFallback } from "@/lib/api-client";
+import { withBasePath } from "@/lib/base-path";
 
 
 
@@ -156,7 +157,7 @@ export async function toggleRolePermission(
   granted: boolean
 ): Promise<boolean> {
   try {
-    const res = await fetch("/api/roles", {
+    const res = await fetch(withBasePath("/api/roles"), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role, permissionKey, granted }),

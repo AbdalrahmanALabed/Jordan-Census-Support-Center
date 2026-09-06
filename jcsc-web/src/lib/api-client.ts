@@ -1,4 +1,4 @@
-/** Shared fetch helpers — never fall back to mock data on HTTP errors (403/500). */
+import { withBasePath } from "@/lib/base-path";
 
 export type ApiResult<T> =
   | { ok: true; data: T }
@@ -9,7 +9,7 @@ export async function apiFetchResult<T>(
   init?: RequestInit
 ): Promise<ApiResult<T>> {
   try {
-    const res = await fetch(path, {
+    const res = await fetch(withBasePath(path), {
       ...init,
       headers: { "Content-Type": "application/json", ...init?.headers },
     });

@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { JordanCensusLogo } from "@/components/brand/jordan-census-logo";
 import { cn } from "@/lib/utils";
+import { withBasePath } from "@/lib/base-path";
 
 const DEMO_PASSWORD = "jcsc2026";
 
@@ -116,7 +117,7 @@ function FieldGroup({
 
 export function LoginForm() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
+  const callbackUrl = withBasePath(searchParams.get("callbackUrl") ?? "/dashboard");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -156,18 +157,18 @@ export function LoginForm() {
         return;
       }
 
-      // Stay on the same host (IP or localhost) — avoid redirecting LAN clients to localhost
-      const redirectTarget = callbackUrl.startsWith("/")
-        ? callbackUrl
-        : (() => {
-            try {
-              const parsed = new URL(result.url ?? callbackUrl, window.location.origin);
-              return `${parsed.pathname}${parsed.search}${parsed.hash}`;
-            } catch {
-              return "/dashboard";
-            }
-          })();
-      window.location.assign(redirectTarget);
+      let redirectTarget = callbackUrl;
+      if (!callbackUrl.startsWith("/")) {
+        try {
+          const parsed = new URL(result.url ?? callbackUrl, window.location.origin);
+          if (parsed.origin === window.location.origin) {
+            redirectTarget = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+          }
+        } catch {
+          redirectTarget = callbackUrl;
+        }
+      }
+      window.location.assign(withBasePath(redirectTarget));
     } catch {
       setError("تعذّر إكمال تسجيل الدخول — حاول مرة أخرى");
       setLoading(false);

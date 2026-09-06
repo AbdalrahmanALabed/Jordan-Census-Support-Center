@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { CaseType, CaseStatus } from "@prisma/client";
 import { requireSession, hasApiPermission } from "@/lib/api-auth";
 import { isSuperAdminRole, isSupportSupervisorRole, isSupportCoordinatorRole } from "@/lib/permissions";
-import { getManagedUserIds, isCaseVisibleToSupportSupervisor } from "@/lib/support-supervisor/server";
+import { getManagedUserIds } from "@/lib/support-supervisor/server";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { sendNotification } from "@/lib/notifications/server";

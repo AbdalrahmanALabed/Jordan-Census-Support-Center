@@ -10,7 +10,7 @@ import type {
 } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { Case, CaseComment, CaseTimelineEvent, CaseDecision, CaseAttachment, SimpleCaseStatus } from "@/lib/cases/types";
-import { caseStatusesForSimple, caseCanClassifyAndAssign, caseNeedsSuperAdminReview } from "@/lib/cases/types";
+import { caseStatusesForSimple, caseCanClassifyAndAssign } from "@/lib/cases/types";
 import { logCaseStatusChange, logCaseAssignment, logCaseReassignment, logCaseTimelineEvent, appendTimelineMeta, timelineRoleLabel } from "@/lib/cases/timeline-log";
 import { generatePrefixedTicketNumber } from "@/lib/ticket-numbers";
 import { resolveCoordinatorForGovernorate } from "@/lib/coordinator-routing";

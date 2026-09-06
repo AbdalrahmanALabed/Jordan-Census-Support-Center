@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { JordanCensusLogo } from "@/components/brand/jordan-census-logo";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { buildNavItems } from "@/components/layout/nav-config";
@@ -23,7 +24,9 @@ export function SidebarDrawer() {
         <div className="sidebar-header flex h-16 items-center border-b px-4">
           <JordanCensusLogo variant="sidebar" size="sm" showText />
         </div>
-        <SidebarNav items={navItems} onNavigate={() => setSidebarOpen(false)} />
+        <Suspense fallback={null}>
+          <SidebarNav items={navItems} onNavigate={() => setSidebarOpen(false)} />
+        </Suspense>
       </DialogContent>
     </Dialog>
   );

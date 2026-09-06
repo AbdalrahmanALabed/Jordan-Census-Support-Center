@@ -89,7 +89,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ? censusSystemToLabel(affectedSystem)
       : existing.affectedSystem ?? undefined;
     if (linkedCase) {
-      let assignResult = await classifyAndAssignCaseDb(
+      const assignResult = await classifyAndAssignCaseDb(
         linkedCase.id,
         "BUG",
         actorId,
@@ -103,36 +103,38 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           affectedSystem: systemLabel,
         }
       );
-      // Case may already be assigned if a prior attempt partially succeeded
-      if (
+      const alreadyAssigned =
         !assignResult &&
         linkedCase.status === "IN_PROGRESS" &&
         linkedCase.caseType === "BUG" &&
-        linkedCase.assignedDeveloperId === resolvedId
-      ) {
-        assignResult = { updated: linkedCase, assigneeId: resolvedId };
-      }
-      if (!assignResult) {
+        linkedCase.assignedDeveloperId === resolvedId;
+
+      if (!assignResult && !alreadyAssigned) {
         return NextResponse.json(
           {
             error: "فشل إسناد الحالة المرتبطة",
-            details: linkedCase.status !== "OPEN" && linkedCase.status !== "UNDER_REVIEW" && linkedCase.status !== "AWAITING_APPROVAL"
-              ? `حالة البلاغ: ${linkedCase.status} — لا يمكن الإسناد من هذه الحالة`
-              : "تعذّر تحديث الحالة",
+            details:
+              linkedCase.status !== "OPEN" &&
+              linkedCase.status !== "UNDER_REVIEW" &&
+              linkedCase.status !== "AWAITING_APPROVAL"
+                ? `حالة البلاغ: ${linkedCase.status} — لا يمكن الإسناد من هذه الحالة`
+                : "تعذّر تحديث الحالة",
           },
           { status: 400 }
         );
       }
-      await sendNotification({
-        userId: resolvedId,
-        title: "تم تعيينك على مشكلة جديدة",
-        message: `${linkedCase.number} — ${linkedCase.title}`,
-        type: "case_assigned",
-        entityType: "Case",
-        entityId: linkedCase.id,
-        level: "info",
-        actionRequired: true,
-      });
+      if (assignResult) {
+        await sendNotification({
+          userId: resolvedId,
+          title: "تم تعيينك على مشكلة جديدة",
+          message: `${linkedCase.number} — ${linkedCase.title}`,
+          type: "case_assigned",
+          entityType: "Case",
+          entityId: linkedCase.id,
+          level: "info",
+          actionRequired: true,
+        });
+      }
     }
     const report = await prisma.report.update({
       where: { id },

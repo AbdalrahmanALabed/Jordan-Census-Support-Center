@@ -173,7 +173,7 @@ export function caseNeedsSuperAdminReview(status: CaseStatus): boolean {
 }
 
 /** @deprecated Super admin no longer accepts OPEN — coordinator triages first */
-export function caseNeedsAcceptance(status: CaseStatus): boolean {
+export function caseNeedsAcceptance(_status: CaseStatus): boolean {
   return false;
 }
 

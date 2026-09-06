@@ -9,7 +9,7 @@ import {
   filterAssignablePermissions,
   isSupportSupervisorRole,
 } from "@/lib/support-supervisor";
-import { isSupportCoordinatorRole, isSuperAdminRole } from "@/lib/permissions";
+import { isSupportCoordinatorRole } from "@/lib/permissions";
 import { getManagedUsers } from "@/lib/support-supervisor/server";
 import { canViewRegionalCoordinatorUsers } from "@/lib/coordinator-routing";
 import { normalizeEmail } from "@/lib/email";

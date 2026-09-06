@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { JordanCensusLogo } from "@/components/brand/jordan-census-logo";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,7 +45,9 @@ export function Sidebar() {
         </Button>
       </div>
 
-      <SidebarNav items={navItems} collapsed={sidebarCollapsed} />
+      <Suspense fallback={null}>
+        <SidebarNav items={navItems} collapsed={sidebarCollapsed} />
+      </Suspense>
     </aside>
   );
 }

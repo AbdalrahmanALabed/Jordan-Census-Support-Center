@@ -49,6 +49,16 @@ import {
 } from "@/lib/developer-specialties";
 import { ROLE_LABELS, CORE_ROLES, GOVERNORATES, type UserRole } from "@/lib/types";
 import { hasPermission } from "@/lib/reports";
+import {
+  isSupportSupervisorRole,
+  isSupportCoordinatorRole,
+  isSuperAdminRole,
+} from "@/lib/permissions";
+import {
+  SUPPORT_SUPERVISOR_ASSIGNABLE_PERMISSIONS,
+  SUPPORT_SUPERVISOR_CREATABLE_ROLES,
+  SUPPORT_COORDINATOR_CREATABLE_ROLES,
+} from "@/lib/support-supervisor";
 import { useEffectiveUser } from "@/hooks/use-effective-user";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +66,21 @@ const ROLE_SELECT_OPTIONS: { value: UserRole; label: string }[] = CORE_ROLES.map
   value: r,
   label: ROLE_LABELS[r],
 }));
+
+function buildRoleSelectOptions(actorRole?: UserRole | null) {
+  if (isSuperAdminRole(actorRole)) return ROLE_SELECT_OPTIONS;
+  if (isSupportSupervisorRole(actorRole)) {
+    return ROLE_SELECT_OPTIONS.filter((o) =>
+      SUPPORT_SUPERVISOR_CREATABLE_ROLES.includes(o.value)
+    );
+  }
+  if (isSupportCoordinatorRole(actorRole)) {
+    return ROLE_SELECT_OPTIONS.filter((o) =>
+      SUPPORT_COORDINATOR_CREATABLE_ROLES.includes(o.value)
+    );
+  }
+  return ROLE_SELECT_OPTIONS.filter((o) => o.value !== "DEVELOPER" && o.value !== "ADMIN");
+}
 
 function FieldLabel({
   label,
@@ -85,6 +110,17 @@ function UserManagementInner() {
   const queryClient = useQueryClient();
   const user = useEffectiveUser();
   const canManageRoles = user?.role ? hasPermission(user.role, "manage_roles") : false;
+  const canAssignPermissions =
+    canManageRoles ||
+    (user?.role ? hasPermission(user.role, "assign_user_permissions") : false);
+  const isTeamLead = isSupportSupervisorRole(user?.role);
+  const isCoordinatorLead = isSupportCoordinatorRole(user?.role);
+  const isSuperAdmin = isSuperAdminRole(user?.role);
+  const isRegionalCoordinatorView = isCoordinatorLead && !isSuperAdmin;
+  const roleOptions = buildRoleSelectOptions(user?.role);
+  const roleFilterOptions = isSuperAdmin
+    ? ROLE_SELECT_OPTIONS
+    : ROLE_SELECT_OPTIONS.filter((o) => o.value !== "DEVELOPER" && o.value !== "ADMIN");
   const [tab, setTab] = useState("list");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<UserRole | "ALL">("ALL");
@@ -96,6 +132,7 @@ function UserManagementInner() {
   const [role, setRole] = useState<UserRole>("SUPERVISOR");
   const [team, setTeam] = useState<string>(DEVELOPER_SPECIALTIES[0].team);
   const [governorate, setGovernorate] = useState<string>(GOVERNORATES[0]);
+  const [password, setPassword] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -137,14 +174,22 @@ function UserManagementInner() {
         role,
         team: isTechnicalAssigneeRole(role) ? team : undefined,
         governorate,
-        permissions: canManageRoles && role !== "ADMIN" ? permissions : undefined,
+        password: password.trim() || undefined,
+        permissions: canAssignPermissions && role !== "ADMIN" ? permissions : undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["users-manage"] });
+      queryClient.invalidateQueries({ queryKey: ["assignee-options"] });
+      const loginEmail = created.email;
+      const loginPassword = created.initialPassword ?? (password.trim() || "jcsc2026");
+      alert(
+        `تم إنشاء الحساب بنجاح.\n\nالبريد: ${loginEmail}\nكلمة المرور: ${loginPassword}\n\nاستخدم هذه البيانات لتسجيل الدخول.`
+      );
       setName("");
       setEmail("");
       setPhone("");
       setJobTitle("");
+      setPassword("");
       setPermissions([]);
       setTab("list");
     },
@@ -153,12 +198,13 @@ function UserManagementInner() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       await updateUser(editingId!, editForm);
-      if (canManageRoles && editForm.role !== "ADMIN") {
+      if (canAssignPermissions && editForm.role !== "ADMIN") {
         await updateUserPermissions(editingId!, editPermissions);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users-manage"] });
+      queryClient.invalidateQueries({ queryKey: ["assignee-options"] });
       setEditingId(null);
     },
   });
@@ -219,31 +265,52 @@ function UserManagementInner() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <PageHero
-        title="الأفراد والصلاحيات"
-        subtitle="إدارة حسابات الفريق، الأدوار، والصلاحيات — كل شيء في مكان واحد"
+        title={
+          isTeamLead
+            ? "فريق الدعم"
+            : isRegionalCoordinatorView
+              ? "منسقو الدعم الإقليميون"
+              : "الأفراد والصلاحيات"
+        }
+        subtitle={
+          isTeamLead
+            ? "أضف دعم المراكز — وحدّد صلاحيات كل عضو"
+            : isRegionalCoordinatorView
+              ? "قائمة منسقي الدعم حسب المحافظات"
+              : "إدارة حسابات الفريق، الأدوار، والصلاحيات — كل شيء في مكان واحد"
+        }
       />
 
       {/* إحصائيات سريعة */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div
+        className={cn(
+          "grid gap-3 grid-cols-2",
+          isSuperAdmin ? "lg:grid-cols-4" : "lg:grid-cols-3"
+        )}
+      >
         <StatCard icon={Users} label="إجمالي الأفراد" value={stats.total} />
         <StatCard icon={UserCheck} label="نشط" value={stats.active} accent="emerald" />
-        <StatCard icon={Shield} label="مشرفون" value={stats.supervisors} accent="amber" />
-        <StatCard icon={Briefcase} label="مطورون" value={stats.developers} accent="violet" />
+        <StatCard icon={Shield} label="دعم المراكز" value={stats.supervisors} accent="amber" />
+        {isSuperAdmin && (
+          <StatCard icon={Briefcase} label="مطورون" value={stats.developers} accent="violet" />
+        )}
       </div>
 
       <Tabs value={tab} onValueChange={setTab} dir="rtl">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 h-auto p-1.5 gap-1">
+        <TabsList className={cn("grid w-full h-auto p-1.5 gap-1", isRegionalCoordinatorView ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3")}>
           <TabsTrigger value="list" className="gap-2 py-3">
             <Users className="h-4 w-4" />
-            قائمة الأفراد
+            {isRegionalCoordinatorView ? "منسقو الدعم" : "قائمة الأفراد"}
             <Badge variant="secondary" className="text-xs font-black">
               {users?.length ?? 0}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="add" className="gap-2 py-3">
-            <UserPlus className="h-4 w-4" />
-            إضافة فرد
-          </TabsTrigger>
+          {!isRegionalCoordinatorView && (
+            <TabsTrigger value="add" className="gap-2 py-3">
+              <UserPlus className="h-4 w-4" />
+              إضافة فرد
+            </TabsTrigger>
+          )}
           {canManageRoles && (
             <TabsTrigger value="permissions" className="gap-2 py-3 sm:col-span-1 col-span-2">
               <Shield className="h-4 w-4" />
@@ -278,7 +345,18 @@ function UserManagementInner() {
                     placeholder="name@jcsc.gov.jo"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => setEmail(e.target.value.toLowerCase())}
+                  />
+                </FieldLabel>
+                <FieldLabel label="كلمة المرور" icon={KeyRound}>
+                  <Input
+                    className="h-11 border-2 text-start"
+                    dir="ltr"
+                    placeholder="jcsc2026 (افتراضي)"
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                   />
                 </FieldLabel>
                 <FieldLabel label="الهاتف" icon={Phone}>
@@ -304,7 +382,7 @@ function UserManagementInner() {
                       <SelectValue placeholder="اختر الدور...">{ROLE_LABELS[role]}</SelectValue>
                     </SelectTrigger>
                     <SelectContent position="popper" className="z-[200]">
-                      {ROLE_SELECT_OPTIONS.map(({ value, label }) => (
+                      {roleOptions.map(({ value, label }) => (
                         <SelectItem key={value} value={value} className="text-base py-3">
                           {label}
                         </SelectItem>
@@ -346,8 +424,12 @@ function UserManagementInner() {
                 </FieldLabel>
               </div>
 
-              {canManageRoles && role !== "ADMIN" && (
-                <UserPermissionsPicker value={permissions} onChange={setPermissions} />
+              {canAssignPermissions && role !== "ADMIN" && (
+                <UserPermissionsPicker
+                  value={permissions}
+                  onChange={setPermissions}
+                  allowedKeys={isTeamLead ? SUPPORT_SUPERVISOR_ASSIGNABLE_PERMISSIONS : undefined}
+                />
               )}
 
               <div className="flex flex-wrap gap-3 pt-2 border-t">
@@ -362,7 +444,7 @@ function UserManagementInner() {
               </div>
               <p className="text-xs text-muted-foreground font-bold flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5 shrink-0" />
-                البريد الإلكتروني مطلوب — كلمة المرور الافتراضية: jcsc2026
+                إذا لم تُحدَّد كلمة مرور، تكون الافتراضية: jcsc2026
               </p>
             </CardContent>
           </Card>
@@ -393,7 +475,7 @@ function UserManagementInner() {
                   </SelectTrigger>
                   <SelectContent position="popper" className="z-[200]">
                     <SelectItem value="ALL">كل الأدوار</SelectItem>
-                    {ROLE_SELECT_OPTIONS.map(({ value, label }) => (
+                    {roleFilterOptions.map(({ value, label }) => (
                       <SelectItem key={value} value={value}>
                         {label}
                       </SelectItem>
@@ -439,7 +521,12 @@ function UserManagementInner() {
                   isEditing={editingId === user.id}
                   editForm={editForm}
                   editPermissions={editPermissions}
-                  canManageRoles={canManageRoles}
+                  canAssignPermissions={canAssignPermissions}
+                  roleOptions={roleOptions}
+                  permissionAllowedKeys={
+                    isTeamLead ? SUPPORT_SUPERVISOR_ASSIGNABLE_PERMISSIONS : undefined
+                  }
+                  readOnly={isRegionalCoordinatorView}
                   onEditFormChange={setEditForm}
                   onEditPermissionsChange={setEditPermissions}
                   onStartEdit={() => startEdit(user)}
@@ -502,7 +589,9 @@ function UserCard({
   isEditing,
   editForm,
   editPermissions,
-  canManageRoles,
+  canAssignPermissions,
+  roleOptions,
+  permissionAllowedKeys,
   onEditFormChange,
   onEditPermissionsChange,
   onStartEdit,
@@ -511,9 +600,11 @@ function UserCard({
   isSaving,
   onResetPassword,
   onToggleActive,
+  readOnly,
 }: {
   user: ManagedUser;
   isEditing: boolean;
+  readOnly?: boolean;
   editForm: {
     name: string;
     email: string;
@@ -524,7 +615,9 @@ function UserCard({
     governorate: string;
   };
   editPermissions: string[];
-  canManageRoles: boolean;
+  canAssignPermissions: boolean;
+  roleOptions: { value: UserRole; label: string }[];
+  permissionAllowedKeys?: readonly string[];
   onEditFormChange: (f: typeof editForm) => void;
   onEditPermissionsChange: (p: string[]) => void;
   onStartEdit: () => void;
@@ -584,7 +677,7 @@ function UserCard({
                   <SelectValue>{ROLE_LABELS[editForm.role]}</SelectValue>
                 </SelectTrigger>
                 <SelectContent position="popper" className="z-[200]">
-                  {ROLE_SELECT_OPTIONS.map(({ value, label }) => (
+                  {roleOptions.map(({ value, label }) => (
                     <SelectItem key={value} value={value}>
                       {label}
                     </SelectItem>
@@ -631,10 +724,11 @@ function UserCard({
               </Select>
             </FieldLabel>
           </div>
-          {canManageRoles && editForm.role !== "ADMIN" && (
+          {canAssignPermissions && editForm.role !== "ADMIN" && (
             <UserPermissionsPicker
               value={editPermissions}
               onChange={onEditPermissionsChange}
+              allowedKeys={permissionAllowedKeys}
             />
           )}
           <div className="flex flex-wrap gap-2 pt-2 border-t">
@@ -704,6 +798,7 @@ function UserCard({
           </div>
 
           {/* إجراءات */}
+          {!readOnly && (
           <div className="flex flex-wrap gap-2 sm:flex-col sm:items-stretch shrink-0">
             <Button size="sm" variant="outline" className="gap-1.5 font-bold" onClick={onStartEdit}>
               <Pencil className="h-3.5 w-3.5" />
@@ -722,6 +817,7 @@ function UserCard({
               {user.isActive ? "تعطيل" : "تفعيل"}
             </Button>
           </div>
+          )}
         </div>
       </CardContent>
     </Card>

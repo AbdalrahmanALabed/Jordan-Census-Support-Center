@@ -381,7 +381,7 @@ export function SettingsContent() {
         </SettingsSection>
       )}
 
-      {/* Developer / supervisor hint */}
+      {/* Developer / center support hint */}
       {!isSuperAdmin && (
         <div className="rounded-xl border-2 border-dashed bg-muted/20 px-5 py-4 text-sm text-muted-foreground leading-relaxed text-start">
           <p className="font-black text-foreground mb-1">حسابك</p>

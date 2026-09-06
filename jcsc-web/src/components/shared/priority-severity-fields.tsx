@@ -14,6 +14,8 @@ import {
   SEVERITY_FIELD_LABEL,
   SEVERITY_LABELS,
   SEVERITY_OPTIONS,
+  normalizeAdminPriority,
+  normalizeAdminSeverity,
 } from "@/lib/case-classification";
 import { PRIORITY_LABELS, type IssuePriority } from "@/lib/types";
 
@@ -37,14 +39,20 @@ export function PrioritySeverityFields({
   const wrapperClass =
     layout === "grid" ? "grid gap-3 sm:grid-cols-2" : "space-y-3";
 
+  const normalizedPriority = normalizeAdminPriority(priority);
+  const normalizedSeverity = normalizeAdminSeverity(severity);
+
   return (
     <div className={wrapperClass} dir="rtl">
       <div className="text-start">
         <p className="text-sm font-black mb-2">{PRIORITY_FIELD_LABEL} *</p>
-        <Select value={priority} onValueChange={(v) => onPriorityChange(v as IssuePriority)}>
+        <Select
+          value={normalizedPriority}
+          onValueChange={(v) => onPriorityChange(v as IssuePriority)}
+        >
           <SelectTrigger className={triggerClassName}>
             <SelectValue placeholder="اختر الأولوية...">
-              {PRIORITY_LABELS[priority]}
+              {PRIORITY_LABELS[normalizedPriority]}
             </SelectValue>
           </SelectTrigger>
           <SelectContent dir="rtl" align="start" position="popper" className="z-[200]">
@@ -58,10 +66,13 @@ export function PrioritySeverityFields({
       </div>
       <div className="text-start">
         <p className="text-sm font-black mb-2">{SEVERITY_FIELD_LABEL} *</p>
-        <Select value={severity} onValueChange={(v) => onSeverityChange(v as CaseSeverity)}>
+        <Select
+          value={normalizedSeverity}
+          onValueChange={(v) => onSeverityChange(v as CaseSeverity)}
+        >
           <SelectTrigger className={triggerClassName}>
             <SelectValue placeholder="اختر الخطورة...">
-              {SEVERITY_LABELS[severity]}
+              {SEVERITY_LABELS[normalizedSeverity]}
             </SelectValue>
           </SelectTrigger>
           <SelectContent dir="rtl" align="start" position="popper" className="z-[200]">

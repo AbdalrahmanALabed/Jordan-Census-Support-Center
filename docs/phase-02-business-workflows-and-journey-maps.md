@@ -867,7 +867,7 @@ journey
 
 ```mermaid
 journey
-    title رحلة المشرف — Supervisor Journey
+    title رحلة الدعم الفني المراكز — Center Technical Support Journey
     section Morning
       Open Dashboard: 5: Supervisor
       Open Work Ranges: 4: Supervisor, FMS

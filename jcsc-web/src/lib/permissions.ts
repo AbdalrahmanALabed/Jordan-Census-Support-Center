@@ -16,6 +16,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   view_queues: "عرض الطوابير",
   manage_users: "إدارة المستخدمين",
   manage_roles: "إدارة الصلاحيات",
+  assign_user_permissions: "منح صلاحيات للفريق",
   manage_routing: "إدارة قواعد التوجيه",
   view_audit: "عرض سجل التدقيق",
   log_report_fallback: "تسجيل ملاحظة نيابةً",
@@ -23,6 +24,12 @@ export const PERMISSION_LABELS: Record<string, string> = {
 
 const FALLBACK_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   SUPERVISOR: ["view_dashboard", "submit_report", "view_own_reports", "view_issues"],
+  SUPPORT_SUPERVISOR: [
+    "view_dashboard",
+    "view_issues",
+    "manage_users",
+    "assign_user_permissions",
+  ],
   SUPPORT_COORDINATOR: [
     "view_dashboard",
     "submit_report",
@@ -31,6 +38,7 @@ const FALLBACK_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     "reject_reports",
     "view_issues",
     "close_issues",
+    "manage_users",
   ],
   ADMIN: Object.keys(PERMISSION_LABELS),
   DEVELOPER: ["view_dashboard", "view_issues", "manage_issues", "view_queues"],
@@ -76,7 +84,7 @@ export function hasPermissionSync(role: UserRole, permission: string): boolean {
   return false;
 }
 
-/** Can browse field solutions / knowledge base (مشرف، منسق، إدارة) */
+/** Can browse field solutions / knowledge base (دعم المراكز، منسق، إدارة) */
 export function canViewKnowledgeBase(
   user?: { role?: UserRole | string | null; permissions?: string[] } | null
 ): boolean {
@@ -90,7 +98,11 @@ export function isSupervisorRole(role?: UserRole | null | string): boolean {
   return role === "SUPERVISOR";
 }
 
-/** Support coordinator — first-line triage between supervisor and super admin */
+export function isSupportSupervisorRole(role?: UserRole | null | string): boolean {
+  return role === "SUPPORT_SUPERVISOR";
+}
+
+/** Support coordinator — first-line triage between center support and super admin */
 export function isSupportCoordinatorRole(role?: UserRole | null | string): boolean {
   return role === "SUPPORT_COORDINATOR";
 }
@@ -107,6 +119,11 @@ export function isManagerRole(role?: UserRole | null): boolean {
 
 export function isDeveloperRole(role?: UserRole | null | string): boolean {
   return role === "DEVELOPER";
+}
+
+/** إسناد/تحويل حالة لمطور — السوبر أدمن أو المطورون عند تحويل الحالة */
+export function canSelectDeveloperAssignee(role?: UserRole | null | string): boolean {
+  return isSuperAdminRole(role as UserRole) || isDeveloperRole(role);
 }
 
 /** Sync permission check for a resolved user object (store or session). */

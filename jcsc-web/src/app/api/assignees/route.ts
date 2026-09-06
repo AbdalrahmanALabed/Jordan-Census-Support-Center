@@ -1,19 +1,13 @@
 import { NextResponse } from "next/server";
-import { requireSession, hasApiPermission } from "@/lib/api-auth";
+import { requireSession } from "@/lib/api-auth";
+import { canSelectDeveloperAssignee } from "@/lib/permissions";
 import { listAssigneeOptions } from "@/lib/assignees/server";
 
 export async function GET() {
   const { session, response } = await requireSession();
   if (response) return response;
 
-  const canAssign =
-    hasApiPermission(session!, "review_reports") ||
-    hasApiPermission(session!, "manage_issues") ||
-    hasApiPermission(session!, "assign_issues") ||
-    hasApiPermission(session!, "convert_to_issue") ||
-    session!.user.role === "ADMIN";
-
-  if (!canAssign) {
+  if (!canSelectDeveloperAssignee(session!.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

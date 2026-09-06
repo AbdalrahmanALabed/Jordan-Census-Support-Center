@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
-  Paperclip,
   User,
   Clock,
-  ExternalLink,
   MapPin,
   Monitor,
   Users,
@@ -18,6 +16,8 @@ import {
   AlertTriangle,
   Eye,
   CheckCircle2,
+  Paperclip,
+  ExternalLink,
 } from "lucide-react";
 import { getSpecialtyLabelFromTeam } from "@/lib/developer-specialties";
 import { Button } from "@/components/ui/button";
@@ -48,8 +48,8 @@ import {
   simpleStatusLabel,
   toSimpleCaseStatus,
   type CaseComment,
-  type CaseAttachment,
 } from "@/lib/cases";
+import { AttachmentsGrid } from "@/components/shared/attachment-card";
 import { PRIORITY_LABELS } from "@/lib/types";
 import { SEVERITY_LABELS } from "@/lib/case-classification";
 import { useUserStore } from "@/stores/user-store";
@@ -166,65 +166,6 @@ function CommentsList({
         </div>
       ))}
     </div>
-  );
-}
-
-function AttachmentsGrid({ attachments }: { attachments: CaseAttachment[] }) {
-  if (!attachments.length) {
-    return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-muted/20 py-14 text-center col-span-2">
-        <Paperclip className="h-10 w-10 text-muted-foreground/40 mb-3" />
-        <p className="font-bold text-muted-foreground">لا مرفقات</p>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {attachments.map((a) => {
-        const isImage =
-          a.kind === "image" || Boolean(a.url?.match(/\.(jpg|jpeg|png|webp|gif)$/i));
-        return (
-          <div
-            key={a.id}
-            className="group rounded-2xl border-2 bg-card overflow-hidden transition-all hover:shadow-md hover:border-primary/30"
-          >
-            {isImage && a.url && a.url !== "/uploads/placeholder" ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={a.url}
-                alt={a.name}
-                className="w-full h-44 object-cover bg-muted"
-              />
-            ) : (
-              <div className="flex h-28 items-center justify-center bg-muted/40">
-                <FileText className="h-10 w-10 text-muted-foreground/50" />
-              </div>
-            )}
-            <div className="flex items-center gap-3 p-4">
-              <div className="rounded-xl bg-primary/10 p-2.5 shrink-0">
-                <Paperclip className="h-4 w-4 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-bold truncate">{a.name}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{a.kind}</p>
-                {a.url && a.url !== "/uploads/placeholder" && (
-                  <a
-                    href={a.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary font-bold hover:underline mt-1.5"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    فتح الملف
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </>
   );
 }
 
@@ -597,7 +538,15 @@ export function CaseDetailContent({ caseId }: { caseId: string }) {
 
             <TabsContent value="attachments" className="mt-0 focus-visible:outline-none">
               <div className="grid gap-3 sm:grid-cols-2">
-                <AttachmentsGrid attachments={attachments ?? []} />
+                <AttachmentsGrid
+                  attachments={(attachments ?? []).map((a) => ({
+                    id: a.id,
+                    name: a.name,
+                    url: a.url,
+                    kind: a.kind,
+                    size: a.size,
+                  }))}
+                />
               </div>
             </TabsContent>
           </Tabs>

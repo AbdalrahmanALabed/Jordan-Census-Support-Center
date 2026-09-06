@@ -123,8 +123,8 @@ function inferActorRole(action: string, actorName?: string): string | undefined 
   ) {
     return "سوبر أدمن";
   }
-  if (action === "حالة جديدة من الميدان" || actorName?.includes("مشرف")) {
-    return "مشرف";
+  if (action === "حالة جديدة من الميدان" || actorName?.includes("دعم فني") || actorName?.includes("دعم المراكز")) {
+    return "الدعم الفني المراكز";
   }
   if (
     action === "تم الحل" ||

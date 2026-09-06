@@ -7,10 +7,11 @@ import {
   SlidersHorizontal,
   ClipboardList,
   PlusCircle,
+  UserPlus,
   Bug,
 } from "lucide-react";
 import { hasPermission, isSupervisorRole, isSupportCoordinatorRole } from "@/lib/reports";
-import { isDeveloperRole } from "@/lib/permissions";
+import { isDeveloperRole, isSupportSupervisorRole } from "@/lib/permissions";
 import type { UserRole } from "@/lib/types";
 
 export type NavItem = {
@@ -56,6 +57,54 @@ export function buildNavItems(role: UserRole): NavItem[] {
     ];
   }
 
+  if (isSupportSupervisorRole(role)) {
+    return [
+      {
+        href: "/dashboard",
+        label: "لوحة مشرف الدعم",
+        icon: LayoutGrid,
+        iconColor: "text-teal-600 dark:text-teal-400",
+        activeGradient: "from-teal-500 to-emerald-600",
+      },
+      {
+        href: "/cases",
+        label: "حالات الفريق",
+        icon: FolderKanban,
+        iconColor: "text-indigo-600 dark:text-indigo-400",
+        activeGradient: "from-indigo-500 to-blue-600",
+      },
+      {
+        href: "/users",
+        label: "فريقي والصلاحيات",
+        icon: UsersRound,
+        iconColor: "text-amber-600 dark:text-amber-400",
+        activeGradient: "from-amber-500 to-orange-500",
+      },
+      {
+        href: "/users?tab=add",
+        label: "إضافة عضو",
+        icon: UserPlus,
+        iconColor: "text-emerald-600 dark:text-emerald-400",
+        activeGradient: "from-emerald-500 to-teal-600",
+      },
+      KNOWLEDGE_NAV,
+      {
+        href: "/notifications",
+        label: "الإشعارات",
+        icon: BellRing,
+        iconColor: "text-orange-600 dark:text-orange-400",
+        activeGradient: "from-orange-500 to-red-500",
+      },
+      {
+        href: "/settings",
+        label: "الإعدادات",
+        icon: SlidersHorizontal,
+        iconColor: "text-slate-600 dark:text-slate-400",
+        activeGradient: "from-slate-500 to-zinc-600",
+      },
+    ];
+  }
+
   if (isSupportCoordinatorRole(role)) {
     return [
       {
@@ -78,6 +127,20 @@ export function buildNavItems(role: UserRole): NavItem[] {
         icon: FolderKanban,
         iconColor: "text-indigo-600 dark:text-indigo-400",
         activeGradient: "from-indigo-500 to-blue-600",
+      },
+      {
+        href: "/users",
+        label: "إدارة المستخدمين",
+        icon: UsersRound,
+        iconColor: "text-amber-600 dark:text-amber-400",
+        activeGradient: "from-amber-500 to-orange-500",
+      },
+      {
+        href: "/users?tab=add",
+        label: "إضافة مستخدم",
+        icon: UserPlus,
+        iconColor: "text-emerald-600 dark:text-emerald-400",
+        activeGradient: "from-emerald-500 to-teal-600",
       },
       KNOWLEDGE_NAV,
       {

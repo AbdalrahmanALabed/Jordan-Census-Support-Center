@@ -80,7 +80,7 @@ export function ApprovalCenterContent() {
 
             <p className="text-sm text-muted-foreground mt-1">
 
-              البلاغات الواردة من المشرفين أو المنسقين تُصنَّف أولاً — لا تظهر هنا حتى يُصعَّد System Bug
+              البلاغات الواردة من دعم المراكز أو المنسقين تُصنَّف أولاً — لا تظهر هنا حتى يُصعَّد System Bug
 
             </p>
 

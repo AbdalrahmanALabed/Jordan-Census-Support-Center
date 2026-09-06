@@ -52,8 +52,8 @@ async function main() {
     await driver.get(`${BASE}/login`);
     await driver.wait(until.elementLocated(By.css('input[type="password"]')), 15000);
 
-    console.log("2/7 — اختيار حساب المشرف الميداني...");
-    await clickByText(driver, "button", "مشرف ميداني");
+    console.log("2/7 — اختيار حساب الدعم الفني المراكز...");
+    await clickByText(driver, "button", "الدعم الفني المراكز");
     const password = await driver.findElement(By.css('input[type="password"]'));
     await password.clear();
     await password.sendKeys("jcsc2026");

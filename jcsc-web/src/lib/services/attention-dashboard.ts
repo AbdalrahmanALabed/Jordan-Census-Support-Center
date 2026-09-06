@@ -5,6 +5,11 @@ import {
   type Case,
   type CaseTimelineEvent,
 } from "@/lib/cases/types";
+import {
+  ADMIN_DASHBOARD_PRIORITIES,
+  normalizeAdminPriority,
+} from "@/lib/case-classification";
+import { PRIORITY_LABELS } from "@/lib/types";
 
 export interface DashboardActivity extends CaseTimelineEvent {
   caseNumber?: string;
@@ -26,7 +31,6 @@ export interface OperationsDashboardData {
     closedToday: number;
     totalOpen: number;
     createdToday: number;
-    criticalOpen: number;
     highOpen: number;
     mediumOpen: number;
     lowOpen: number;
@@ -66,13 +70,6 @@ function buildWeeklyTrend(cases: Case[]): { date: string; count: number }[] {
   }
   return days;
 }
-
-const PRIORITY_LABELS: Record<string, string> = {
-  CRITICAL: "حرجة",
-  HIGH: "عالية",
-  MEDIUM: "متوسطة",
-  LOW: "منخفضة",
-};
 
 type CaseSummaryStats = {
   pendingCoordinator: number;
@@ -155,13 +152,13 @@ export async function getOperationsDashboard(): Promise<OperationsDashboardData>
     (c) => toSimpleCaseStatus(c.status) === "SOLVED" && isToday(c.updatedAt)
   );
 
-  const priorityCounts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+  const priorityCounts = { HIGH: 0, MEDIUM: 0, LOW: 0 };
   for (const c of openCases) {
-    const p = c.priority as keyof typeof priorityCounts;
-    if (p in priorityCounts) priorityCounts[p]++;
+    const p = normalizeAdminPriority(c.priority);
+    priorityCounts[p]++;
   }
 
-  const byPriority = (["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((p) => ({
+  const byPriority = ADMIN_DASHBOARD_PRIORITIES.map((p) => ({
     priority: p,
     label: PRIORITY_LABELS[p],
     count: priorityCounts[p],
@@ -191,7 +188,6 @@ export async function getOperationsDashboard(): Promise<OperationsDashboardData>
       closedToday: summary?.closedToday ?? closedToday.length,
       totalOpen: summary?.totalOpen ?? totalOpen,
       createdToday: summary?.createdToday ?? createdToday.length,
-      criticalOpen: priorityCounts.CRITICAL,
       highOpen: priorityCounts.HIGH,
       mediumOpen: priorityCounts.MEDIUM,
       lowOpen: priorityCounts.LOW,

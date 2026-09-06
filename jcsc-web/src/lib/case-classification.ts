@@ -258,12 +258,29 @@ export const NOT_PROBLEM_CLASSIFY_OPTIONS: {
   label: o.label,
   hint: o.hint,
 }));
+/** أولويات السوبر أدمن — عالية، متوسطة، منخفضة فقط */
+export const ADMIN_DASHBOARD_PRIORITIES = ["HIGH", "MEDIUM", "LOW"] as const;
+export type AdminDashboardPriority = (typeof ADMIN_DASHBOARD_PRIORITIES)[number];
+
+/** تحويل «حرجة» القديمة إلى «عالية» للعرض والإحصاء */
+export function normalizeAdminPriority(priority: IssuePriority): AdminDashboardPriority {
+  return priority === "CRITICAL" ? "HIGH" : priority;
+}
+
+export function adminPriorityLabel(priority: IssuePriority): string {
+  return PRIORITY_LABELS[normalizeAdminPriority(priority)];
+}
+
 /** أولويات السوبر أدمن — بدون «حرجة» */
-export const ADMIN_PRIORITY_OPTIONS = (
-  Object.entries(PRIORITY_LABELS) as [IssuePriority, string][]
-).filter(([key]) => key !== "CRITICAL");
+export const ADMIN_PRIORITY_OPTIONS = ADMIN_DASHBOARD_PRIORITIES.map(
+  (key) => [key, PRIORITY_LABELS[key]] as [IssuePriority, string]
+);
 
 /** خيارات الخطورة — بدون «حرجة» */
 export const SEVERITY_OPTIONS = (
   Object.entries(SEVERITY_LABELS) as [CaseSeverity, string][]
 ).filter(([key]) => key !== "CRITICAL");
+
+export function normalizeAdminSeverity(severity: CaseSeverity): CaseSeverity {
+  return severity === "CRITICAL" ? "HIGH" : severity;
+}

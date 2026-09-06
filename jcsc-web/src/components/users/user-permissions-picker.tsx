@@ -9,13 +9,28 @@ interface UserPermissionsPickerProps {
   value: string[];
   onChange: (permissions: string[]) => void;
   disabled?: boolean;
+  /** Restrict which permission keys can be toggled (e.g. support supervisor) */
+  allowedKeys?: readonly string[];
 }
 
-export function UserPermissionsPicker({ value, onChange, disabled }: UserPermissionsPickerProps) {
+export function UserPermissionsPicker({
+  value,
+  onChange,
+  disabled,
+  allowedKeys,
+}: UserPermissionsPickerProps) {
   const toggle = (key: string) => {
     if (disabled) return;
+    if (allowedKeys && !allowedKeys.includes(key)) return;
     onChange(value.includes(key) ? value.filter((k) => k !== key) : [...value, key]);
   };
+
+  const screens = allowedKeys
+    ? PERMISSION_MATRIX.map((screen) => ({
+        ...screen,
+        actions: screen.actions.filter((a) => allowedKeys.includes(a.key)),
+      })).filter((s) => s.actions.length > 0)
+    : PERMISSION_MATRIX;
 
   return (
     <div className="space-y-4 rounded-2xl border-2 p-5 bg-muted/20 text-start">
@@ -29,7 +44,7 @@ export function UserPermissionsPicker({ value, onChange, disabled }: UserPermiss
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {PERMISSION_MATRIX.map((screen) => (
+        {screens.map((screen) => (
           <div
             key={screen.screen}
             className="rounded-xl border bg-background/80 p-4 space-y-2.5"

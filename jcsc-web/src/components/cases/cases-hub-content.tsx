@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Search,
@@ -45,12 +45,14 @@ import { getCases } from "@/lib/services/cases";
 import { getDeveloperDashboard } from "@/lib/services/attention-dashboard";
 import {
   CASE_TYPE_LABELS,
+  CASE_STATUS_LABELS,
   SIMPLE_CASE_STATUS_LABELS,
   OPERATIONAL_CASE_TYPES,
   caseNeedsCoordinatorReview,
   caseNeedsSuperAdminReview,
   simpleStatusLabel,
   toSimpleCaseStatus,
+  caseStatusesForSimple,
   type CaseType,
   type SimpleCaseStatus,
   type Case,
@@ -71,7 +73,7 @@ import {
 import { useEffectiveUser, useAuthReady } from "@/hooks/use-effective-user";
 import { useUserStore } from "@/stores/user-store";
 import { isSupervisorRole } from "@/lib/reports";
-import { canManageCases, isDeveloperRole, isSupportCoordinatorRole } from "@/lib/permissions";
+import { canManageCases, isDeveloperRole, isSupportCoordinatorRole, isSupportSupervisorRole } from "@/lib/permissions";
 
 const COORDINATOR_STATUS_FILTERS = [
   { value: "OPEN", label: "بانتظار التصنيف", icon: Inbox },
@@ -84,6 +86,37 @@ function isAssignedToUser(c: Case, userId?: string, userName?: string): boolean 
     c.assignedDeveloperId === userId ||
     (!!userName && c.assignedDeveloperName === userName)
   );
+}
+
+function matchesCaseListFilters(
+  c: Case,
+  opts: {
+    search: string;
+    caseType: CaseType | "ALL";
+    simpleStatus: SimpleCaseStatus | "ALL";
+    rawStatus: string | "ALL";
+    systemPrefix: SystemPrefixFilter;
+    specialtyFilter: SpecialtyFilter;
+  }
+): boolean {
+  const q = opts.search.trim().toLowerCase();
+  if (
+    q &&
+    !c.number.toLowerCase().includes(q) &&
+    !c.title.toLowerCase().includes(q) &&
+    !(c.description?.toLowerCase().includes(q) ?? false)
+  ) {
+    return false;
+  }
+  if (opts.caseType !== "ALL" && c.caseType !== opts.caseType) return false;
+  if (opts.rawStatus !== "ALL") {
+    if (c.status !== opts.rawStatus) return false;
+  } else if (opts.simpleStatus !== "ALL") {
+    if (!caseStatusesForSimple(opts.simpleStatus).includes(c.status)) return false;
+  }
+  if (!matchesSystemPrefixFilter(c, opts.systemPrefix)) return false;
+  if (!matchesSpecialtyFilter(c, opts.specialtyFilter)) return false;
+  return true;
 }
 
 function sortCases(cases: Case[], prioritizeReview: boolean, forCoordinator = false): Case[] {
@@ -176,53 +209,70 @@ function SectionBlock({
 }
 
 export function CasesHubContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const user = useEffectiveUser();
   const { isLoading: authLoading } = useAuthReady();
   const { hasPermission } = useUserStore();
   const isSupervisor = isSupervisorRole(user?.role);
   const isCoordinator = isSupportCoordinatorRole(user?.role);
+  const isSupportSupervisor = isSupportSupervisorRole(user?.role);
   const canReviewCases =
     !isCoordinator &&
     (canManageCases(user) ||
       hasPermission("classify_reports") ||
       hasPermission("manage_issues"));
   const isDev = isDeveloperRole(user?.role ?? "");
+  const isAdminListView =
+    canReviewCases && !isDev && !isCoordinator && !isSupervisor;
+
+  const urlSimpleStatus = searchParams.get("simpleStatus");
+  const urlStatus = searchParams.get("status");
+
+  const simpleStatus = useMemo((): SimpleCaseStatus | "ALL" => {
+    if (urlStatus) return "ALL";
+    if (urlSimpleStatus && urlSimpleStatus in SIMPLE_CASE_STATUS_LABELS) {
+      return urlSimpleStatus as SimpleCaseStatus;
+    }
+    return "ALL";
+  }, [urlSimpleStatus, urlStatus]);
+
+  const rawStatus = useMemo((): string | "ALL" => {
+    if (urlStatus) return urlStatus;
+    if (isCoordinator && !urlSimpleStatus) return "OPEN";
+    return "ALL";
+  }, [urlStatus, urlSimpleStatus, isCoordinator]);
 
   const [search, setSearch] = useState("");
   const [caseType, setCaseType] = useState<CaseType | "ALL">("ALL");
-  const [simpleStatus, setSimpleStatus] = useState<SimpleCaseStatus | "ALL">("ALL");
-  const [rawStatus, setRawStatus] = useState<string | "ALL">("ALL");
   const [systemPrefix, setSystemPrefix] = useState<SystemPrefixFilter>("ALL");
   const [specialtyFilter, setSpecialtyFilter] = useState<SpecialtyFilter>("ALL");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   useEffect(() => {
-    const fromUrl = searchParams.get("simpleStatus");
-    if (fromUrl && fromUrl in SIMPLE_CASE_STATUS_LABELS) {
-      setSimpleStatus(fromUrl as SimpleCaseStatus);
-    }
-    const statusParam = searchParams.get("status");
-    if (statusParam) {
-      setRawStatus(statusParam);
-      if (statusParam === "OPEN" || statusParam === "AWAITING_APPROVAL") {
-        setSimpleStatus("ALL");
-      }
-    } else if (isCoordinator && !fromUrl) {
-      setRawStatus("OPEN");
-    }
-  }, [searchParams, isCoordinator]);
+    setSearch("");
+    setCaseType("ALL");
+    setSystemPrefix("ALL");
+    setSpecialtyFilter("ALL");
+  }, [urlSimpleStatus, urlStatus]);
 
   const { data: rawCases, isLoading } = useQuery({
-    queryKey: ["cases", search, caseType, simpleStatus, rawStatus, isSupervisor, user?.id, user?.role],
+    queryKey: isAdminListView
+      ? ["cases", "admin-all", user?.id, user?.role]
+      : ["cases", search, caseType, simpleStatus, rawStatus, isSupervisor, user?.id, user?.role],
     queryFn: () =>
-      getCases({
-        search,
-        caseType: isDev ? "BUG" : caseType,
-        simpleStatus: rawStatus !== "ALL" ? undefined : simpleStatus,
-        status: rawStatus !== "ALL" ? (rawStatus as import("@/lib/cases/types").CaseStatus) : undefined,
-        mine: isSupervisor ? true : undefined,
-      }),
+      isAdminListView
+        ? getCases({})
+        : getCases({
+            search,
+            caseType: isDev ? "BUG" : caseType,
+            simpleStatus: rawStatus !== "ALL" ? undefined : simpleStatus,
+            status:
+              rawStatus !== "ALL"
+                ? (rawStatus as import("@/lib/cases/types").CaseStatus)
+                : undefined,
+            mine: isSupervisor ? true : undefined,
+          }),
     enabled: !!user?.role && !authLoading,
   });
 
@@ -246,15 +296,21 @@ export function CasesHubContent() {
 
   const kpis = useMemo(() => computeCaseStatusKpis(roleFiltered), [roleFiltered]);
 
-  const filteredCases = useMemo(
-    () =>
-      roleFiltered.filter(
-        (c) =>
-          matchesSystemPrefixFilter(c, systemPrefix) &&
-          matchesSpecialtyFilter(c, specialtyFilter)
-      ),
-    [roleFiltered, systemPrefix, specialtyFilter]
+  const filterOpts = useMemo(
+    () => ({ search, caseType, simpleStatus, rawStatus, systemPrefix, specialtyFilter }),
+    [search, caseType, simpleStatus, rawStatus, systemPrefix, specialtyFilter]
   );
+
+  const filteredCases = useMemo(() => {
+    if (isAdminListView) {
+      return roleFiltered.filter((c) => matchesCaseListFilters(c, filterOpts));
+    }
+    return roleFiltered.filter(
+      (c) =>
+        matchesSystemPrefixFilter(c, systemPrefix) &&
+        matchesSpecialtyFilter(c, specialtyFilter)
+    );
+  }, [roleFiltered, isAdminListView, filterOpts, systemPrefix, specialtyFilter]);
 
   const sortedCases = useMemo(
     () => sortCases(filteredCases, (canReviewCases || isCoordinator) && !isDev, isCoordinator),
@@ -343,26 +399,29 @@ export function CasesHubContent() {
   const pendingReviewCount = isCoordinator
     ? coordinatorStats?.pending ?? coordinatorPendingCases.length
     : canReviewCases && !isDev
-      ? sortedCases.filter((c) => caseNeedsSuperAdminReview(c.status)).length
+      ? roleFiltered.filter((c) => caseNeedsSuperAdminReview(c.status)).length
       : 0;
 
   const clearFilters = () => {
     setSearch("");
     setCaseType("ALL");
-    setSimpleStatus("ALL");
-    setRawStatus(isCoordinator ? "OPEN" : "ALL");
     setSystemPrefix("ALL");
     setSpecialtyFilter("ALL");
+    router.replace("/cases");
+  };
+
+  const setAdminSimpleStatus = (value: SimpleCaseStatus | "ALL") => {
+    if (value === "ALL") router.replace("/cases");
+    else router.replace(`/cases?simpleStatus=${value}`);
+  };
+
+  const showPendingReviewCases = () => {
+    router.replace("/cases?status=AWAITING_APPROVAL");
   };
 
   const setCoordinatorStatusFilter = (value: string) => {
-    if (value === "ALL") {
-      setRawStatus("ALL");
-      setSimpleStatus("ALL");
-    } else {
-      setRawStatus(value);
-      setSimpleStatus("ALL");
-    }
+    if (value === "ALL") router.replace("/cases");
+    else router.replace(`/cases?status=${value}`);
   };
 
   const coordinatorStatusCounts = useMemo(() => {
@@ -431,6 +490,8 @@ export function CasesHubContent() {
 
   const pageTitle = isCoordinator
     ? "تصنيف البلاغات"
+    : isSupportSupervisor
+      ? "حالات الفريق"
     : isSupervisor
       ? "حالاتي"
       : isDev
@@ -507,7 +568,7 @@ export function CasesHubContent() {
           <StatusFilterNav
             options={statusNavOptions}
             value={simpleStatus}
-            onChange={setSimpleStatus}
+            onChange={setAdminSimpleStatus}
             totalCount={roleFiltered.length}
           />
         </FilterSection>
@@ -523,7 +584,7 @@ export function CasesHubContent() {
               icon,
             }))}
             value={simpleStatus}
-            onChange={setSimpleStatus}
+            onChange={setAdminSimpleStatus}
             allLabel="الكل"
           />
         </FilterSection>
@@ -630,7 +691,7 @@ export function CasesHubContent() {
           hasActiveFilters
             ? "جرّب تغيير الفلاتر أو مسحها"
             : rawStatus === "OPEN"
-              ? "ستظهر هنا البلاغات الجديدة من المشرفين للتصنيف"
+              ? "ستظهر هنا البلاغات الجديدة من دعم المراكز للتصنيف"
               : "لم يتم العثور على حالات بهذه الفلاتر"
         }
         action={
@@ -679,14 +740,16 @@ export function CasesHubContent() {
       icon={FolderKanban}
       title="لا توجد حالات"
       description={
-        hasActiveFilters
-          ? "جرّب تغيير الفلاتر أو مسحها"
-          : "لم يتم العثور على حالات بعد"
+        hasActiveFilters && roleFiltered.length > 0
+          ? `الفلاتر الحالية تخفي كل النتائج — يوجد ${roleFiltered.length} حالة إجمالاً`
+          : hasActiveFilters
+            ? "جرّب تغيير الفلاتر أو مسحها"
+            : "لم يتم العثور على حالات بعد"
       }
       action={
         hasActiveFilters ? (
           <Button size="lg" variant="outline" className="font-bold" onClick={clearFilters}>
-            مسح الفلاتر
+            مسح كل الفلاتر
           </Button>
         ) : canReviewCases && !isDev ? (
           <Button asChild size="lg" className="font-black">
@@ -719,7 +782,9 @@ export function CasesHubContent() {
             <h1 className="text-2xl md:text-3xl font-black tracking-tight">{pageTitle}</h1>
             <p className="text-sm md:text-base text-muted-foreground mt-1.5 max-w-xl font-medium">
               {isCoordinator
-                ? "صنّف البلاغات الواردة من المشرفين — System Bug للسوبر أدمن، أو أغلقها بسبب تقني"
+                ? "صنّف البلاغات الواردة من دعم المراكز — System Bug للسوبر أدمن، أو أغلقها بسبب تقني"
+                : isSupportSupervisor
+                  ? "كل البلاغات التي أنشأها أفراد فريقك — مع اسم المرسل"
                 : isSupervisor
                   ? "تابع حالاتك من الإنشاء حتى الإغلاق"
                   : isDev
@@ -827,14 +892,14 @@ export function CasesHubContent() {
                     عرض بانتظار التصنيف
                   </Button>
                 ) : undefined
-              ) : simpleStatus !== "NEW" ? (
+              ) : rawStatus !== "AWAITING_APPROVAL" ? (
                 <Button
                   size="lg"
                   variant="secondary"
                   className="font-bold border-2"
-                  onClick={() => setSimpleStatus("NEW")}
+                  onClick={showPendingReviewCases}
                 >
-                  عرض الجديد
+                  عرض بانتظار المراجعة
                 </Button>
               ) : undefined
             }
@@ -885,7 +950,14 @@ export function CasesHubContent() {
                   · {COORDINATOR_STATUS_FILTERS.find((f) => f.value === coordinatorStatusValue)?.label ?? coordinatorStatusValue}
                 </span>
               )}
-              {!isCoordinator && simpleStatus !== "ALL" && (
+              {!isCoordinator && rawStatus !== "ALL" && (
+                <span className="text-xs font-bold text-muted-foreground">
+                  ·{" "}
+                  {CASE_STATUS_LABELS[rawStatus as keyof typeof CASE_STATUS_LABELS] ??
+                    rawStatus}
+                </span>
+              )}
+              {!isCoordinator && simpleStatus !== "ALL" && rawStatus === "ALL" && (
                 <span className="text-xs font-bold text-muted-foreground">
                   · {SIMPLE_CASE_STATUS_LABELS[simpleStatus]}
                 </span>
@@ -896,19 +968,33 @@ export function CasesHubContent() {
                 </span>
               )}
             </div>
-            {canReviewCases && !isDev && !isCoordinator && (
-              <Link
-                href="/cases/create"
-                className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                بلاغ جديد
-              </Link>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {hasActiveFilters && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="font-bold gap-1.5 h-8"
+                  onClick={clearFilters}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  مسح كل الفلاتر
+                </Button>
+              )}
+              {canReviewCases && !isDev && !isCoordinator && (
+                <Link
+                  href="/cases/create"
+                  className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  بلاغ جديد
+                </Link>
+              )}
+            </div>
           </div>
 
           {hasActiveFilters && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5">
+              <span className="text-xs font-bold text-primary">فلاتر نشطة</span>
               {search.trim() && (
                 <ActiveFilterChip label={`بحث: ${search}`} onRemove={() => setSearch("")} />
               )}
@@ -918,10 +1004,19 @@ export function CasesHubContent() {
                   onRemove={() => setCaseType("ALL")}
                 />
               )}
+              {rawStatus !== "ALL" && (
+                <ActiveFilterChip
+                  label={
+                    CASE_STATUS_LABELS[rawStatus as keyof typeof CASE_STATUS_LABELS] ??
+                    rawStatus
+                  }
+                  onRemove={() => router.replace("/cases")}
+                />
+              )}
               {simpleStatus !== "ALL" && (
                 <ActiveFilterChip
                   label={SIMPLE_CASE_STATUS_LABELS[simpleStatus]}
-                  onRemove={() => setSimpleStatus("ALL")}
+                  onRemove={() => router.replace("/cases")}
                 />
               )}
               {systemPrefix !== "ALL" && (

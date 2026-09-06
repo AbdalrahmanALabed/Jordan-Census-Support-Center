@@ -29,7 +29,7 @@ export const LIFECYCLE_PHASES: {
   {
     phase: "OBSERVATION",
     label: "الملاحظة الميدانية",
-    description: "المشرف يرسل ملاحظة — ليس تذكرة",
+    description: "الدعم الفني المراكز يرسل ملاحظة — ليس تذكرة",
     steps: [{ key: "NEW", label: "بلاغ جديد" }],
   },
   {

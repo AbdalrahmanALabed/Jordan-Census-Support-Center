@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
@@ -7,7 +8,6 @@ import {
   Wrench,
   CheckCircle2,
   Archive,
-  Layers,
   TrendingUp,
   PlusCircle,
   Activity,
@@ -23,63 +23,91 @@ import {
   CalendarPlus,
   Minus,
   ArrowDown,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   KpiTile,
   PageHero,
   SectionCard,
   QuickRow,
   StatusBadge,
-  AlertBanner,
 } from "@/components/shared/ops-ui";
 import { getOperationsDashboard } from "@/lib/services/attention-dashboard";
-import { simpleStatusLabel, toSimpleCaseStatus } from "@/lib/cases";
+import { simpleStatusLabel, toSimpleCaseStatus, type Case } from "@/lib/cases";
 import { formatRelativeDate, cn } from "@/lib/utils";
 import { useUserStore } from "@/stores/user-store";
 
 const WORKFLOW_STEPS = [
-  { key: "review", label: "System Bug", icon: Bug, statKey: "waitingReview" as const, href: "/cases?status=AWAITING_APPROVAL" },
-  { key: "dev", label: "المطورين", icon: Wrench, statKey: "assignedToDevelopers" as const, href: "/cases?simpleStatus=IN_PROGRESS" },
-  { key: "solved", label: "محلول", icon: CheckCircle2, statKey: "solvedAwaitingClose" as const, href: "/cases?simpleStatus=SOLVED" },
-  { key: "closed", label: "مغلق اليوم", icon: Archive, statKey: "closedToday" as const, href: "/cases?simpleStatus=CLOSED" },
-];
+  {
+    key: "review",
+    label: "System Bug",
+    icon: Bug,
+    statKey: "waitingReview" as const,
+    href: "/cases?status=AWAITING_APPROVAL",
+  },
+  {
+    key: "dev",
+    label: "المطورين",
+    icon: Wrench,
+    statKey: "assignedToDevelopers" as const,
+    href: "/cases?simpleStatus=IN_PROGRESS",
+  },
+  {
+    key: "solved",
+    label: "محلول",
+    icon: CheckCircle2,
+    statKey: "solvedAwaitingClose" as const,
+    href: "/cases?simpleStatus=SOLVED",
+  },
+  {
+    key: "closed",
+    label: "مغلق اليوم",
+    icon: Archive,
+    statKey: "closedToday" as const,
+    href: "/cases?simpleStatus=CLOSED",
+  },
+] as const;
 
-function KpiSection({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
+function DashboardSkeleton() {
   return (
-    <section className="space-y-3">
-      <div className="text-start">
-        <h3 className="text-sm font-black">{title}</h3>
-        {description && (
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-        )}
+    <div className="content-container space-y-6 animate-fade-in-up pb-8">
+      <div className="h-36 rounded-2xl skeleton-shimmer" />
+      <div className="h-24 rounded-2xl skeleton-shimmer" />
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-24 rounded-2xl skeleton-shimmer" />
+        ))}
       </div>
-      {children}
-    </section>
+      <div className="h-64 rounded-2xl skeleton-shimmer" />
+    </div>
   );
 }
 
 function WorkflowPipeline({
   stats,
+  totalOpen,
 }: {
-  stats: {
-    waitingReview: number;
-    assignedToDevelopers: number;
-    solvedAwaitingClose: number;
-    closedToday: number;
-  };
+  stats: Record<(typeof WORKFLOW_STEPS)[number]["statKey"], number>;
+  totalOpen: number;
 }) {
   return (
     <div className="rounded-2xl border-2 bg-card p-5 md:p-6 shadow-sm overflow-x-auto">
-      <p className="text-xs font-bold text-muted-foreground mb-4">مسار معالجة الحالات</p>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h3 className="text-sm font-black">مسار معالجة الحالات</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {totalOpen} حالة مفتوحة إجمالاً — اضغط على أي مرحلة للانتقال
+          </p>
+        </div>
+        <Button asChild variant="outline" size="sm" className="font-bold shrink-0">
+          <Link href="/cases">
+            <Layers className="h-4 w-4" />
+            كل الحالات
+          </Link>
+        </Button>
+      </div>
       <div className="flex items-center gap-1 min-w-[32rem]">
         {WORKFLOW_STEPS.map((step, i) => {
           const Icon = step.icon;
@@ -125,20 +153,65 @@ function WorkflowPipeline({
   );
 }
 
+function PriorityAlert({
+  waitingReview,
+  highOpen,
+}: {
+  waitingReview: number;
+  highOpen: number;
+}) {
+  if (waitingReview === 0 && highOpen === 0) return null;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {waitingReview > 0 && (
+        <Link
+          href="/cases?status=AWAITING_APPROVAL"
+          className="flex items-center gap-4 rounded-2xl border-2 border-violet-300/60 bg-gradient-to-l from-violet-500/10 via-card to-primary/5 p-4 md:p-5 shadow-sm hover:shadow-md transition-all"
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white">
+            <Bug className="h-6 w-6" />
+          </div>
+          <div className="flex-1 min-w-0 text-start">
+            <p className="font-black">{waitingReview} للمراجعة والإسناد</p>
+            <p className="text-xs text-muted-foreground mt-0.5">System Bug من منسق الدعم</p>
+          </div>
+          <ChevronLeft className="h-5 w-5 text-muted-foreground shrink-0" />
+        </Link>
+      )}
+      {highOpen > 0 && (
+        <Link
+          href="/cases"
+          className="flex items-center gap-4 rounded-2xl border-2 border-amber-300/70 bg-gradient-to-l from-amber-500/10 via-card to-orange-500/5 p-4 md:p-5 shadow-sm hover:shadow-md transition-all"
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+            <Flame className="h-6 w-6" />
+          </div>
+          <div className="flex-1 min-w-0 text-start">
+            <p className="font-black">{highOpen} أولوية عالية</p>
+            <p className="text-xs text-muted-foreground mt-0.5">حالات مفتوحة تحتاج متابعة</p>
+          </div>
+          <ChevronLeft className="h-5 w-5 text-muted-foreground shrink-0" />
+        </Link>
+      )}
+    </div>
+  );
+}
+
 function WeeklyTrendChart({ data }: { data: { date: string; count: number }[] }) {
   const max = Math.max(...data.map((d) => d.count), 1);
   return (
-    <div className="rounded-2xl border-2 bg-card overflow-hidden shadow-sm">
+    <div className="rounded-2xl border-2 bg-card overflow-hidden shadow-sm h-full">
       <div className="flex items-center gap-3 border-b border-border/60 bg-muted/20 px-5 py-4">
         <div className="rounded-xl bg-primary/10 p-2.5">
           <TrendingUp className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h3 className="text-base font-black">حالات جديدة — آخر 7 أيام</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">عدد الحالات المُنشأة يومياً</p>
+          <h3 className="text-base font-black">حالات جديدة — 7 أيام</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">نشاط الإنشاء اليومي</p>
         </div>
       </div>
-      <div className="p-5 md:p-6">
+      <div className="p-5">
         <div className="flex items-end gap-2 h-28">
           {data.map((d, i) => {
             const h = Math.round((d.count / max) * 100);
@@ -161,6 +234,33 @@ function WeeklyTrendChart({ data }: { data: { date: string; count: number }[] })
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+function InsightPanel({
+  title,
+  subtitle,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border-2 bg-card overflow-hidden shadow-sm h-full">
+      <div className="flex items-center gap-3 border-b border-border/60 bg-muted/20 px-5 py-4">
+        <div className="rounded-xl bg-primary/10 p-2.5">
+          <Icon className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h3 className="text-base font-black">{title}</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+        </div>
+      </div>
+      <div className="p-5">{children}</div>
     </div>
   );
 }
@@ -205,9 +305,43 @@ function ActivityItem({
   );
 }
 
+function CaseQueueList({
+  cases,
+  emptyText,
+  renderSecondary,
+  badge,
+}: {
+  cases: Case[];
+  emptyText: string;
+  renderSecondary?: (c: Case) => string;
+  badge?: (c: Case) => React.ReactNode;
+}) {
+  if (cases.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground text-center py-10 rounded-xl border-2 border-dashed">
+        {emptyText}
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {cases.slice(0, 6).map((c) => (
+        <QuickRow
+          key={c.id}
+          href={`/cases/${c.id}`}
+          primary={c.title}
+          secondary={renderSecondary ? renderSecondary(c) : c.number}
+          badge={badge?.(c)}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function OperationsDashboardContent() {
   const { currentUser } = useUserStore();
   const adminName = currentUser?.name?.split(" ")[0] ?? "";
+  const [queueTab, setQueueTab] = useState("review");
 
   const { data, isLoading } = useQuery({
     queryKey: ["operations-dashboard"],
@@ -215,41 +349,22 @@ export function OperationsDashboardContent() {
     refetchInterval: 60_000,
   });
 
-  if (isLoading || !data) {
-    return (
-      <div className="content-container space-y-6 animate-fade-in-up pb-8">
-        <div className="h-36 rounded-2xl skeleton-shimmer" />
-        <div className="h-24 rounded-2xl skeleton-shimmer" />
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="h-28 rounded-2xl skeleton-shimmer" />
-          ))}
-        </div>
-        <div className="h-40 rounded-2xl skeleton-shimmer" />
-        <div className="grid gap-5 lg:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-48 rounded-2xl skeleton-shimmer" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  if (isLoading || !data) return <DashboardSkeleton />;
 
   const { stats } = data;
-  const totalAttention =
-    stats.waitingReview + stats.assignedToDevelopers + stats.solvedAwaitingClose;
-  const urgentCount = stats.criticalOpen + stats.highOpen;
+  const needsAction = stats.waitingReview + stats.solvedAwaitingClose;
 
   return (
     <div dir="rtl" className="content-container space-y-6 pb-8 text-start">
+      {/* ── ترحيب + إجراءات سريعة ── */}
       <PageHero
         title={adminName ? `مرحباً ${adminName}` : "لوحة السوبر أدمن"}
         subtitle={
-          totalAttention === 0
-            ? `${stats.totalOpen} حالة مفتوحة — لا شيء عاجل`
-            : `${totalAttention} ${totalAttention === 1 ? "حالة" : "حالات"} تحتاج قرارك · ${urgentCount} عاجلة`
+          needsAction > 0
+            ? `${needsAction} ${needsAction === 1 ? "حالة" : "حالات"} تحتاج قرارك · ${stats.totalOpen} مفتوحة`
+            : `${stats.totalOpen} حالة مفتوحة — الوضع مستقر`
         }
-        variant={totalAttention > 0 || urgentCount > 0 ? "urgent" : "calm"}
+        variant={needsAction > 0 || stats.highOpen > 0 ? "urgent" : "calm"}
       >
         <Button asChild size="lg">
           <Link href="/cases/create">
@@ -258,97 +373,110 @@ export function OperationsDashboardContent() {
           </Link>
         </Button>
         <Button asChild size="lg" variant="secondary">
-          <Link href="/cases">كل الحالات</Link>
+          <Link href="/cases?status=AWAITING_APPROVAL">مراجعة System Bug</Link>
         </Button>
       </PageHero>
 
-      {totalAttention > 0 && (
-        <Link
-          href="/cases?status=AWAITING_APPROVAL"
-          className="flex flex-wrap items-center gap-4 rounded-2xl border-2 border-amber-300/70 bg-gradient-to-l from-amber-500/12 via-card to-red-500/8 p-5 md:p-6 shadow-md hover:shadow-lg transition-all hover:border-amber-400/80"
-        >
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-            <Inbox className="h-7 w-7" />
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <p className="text-xl font-black text-amber-900 dark:text-amber-100">
-              {totalAttention} {totalAttention === 1 ? "حالة" : "حالات"} تحتاج قرارك
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">اضغط لبدء المراجعة فوراً</p>
-          </div>
-          <span className="rounded-xl bg-brand-gradient px-5 py-2.5 text-sm font-black text-white shrink-0">
-            ابدأ الآن
-          </span>
-        </Link>
-      )}
+      {/* ── مسار العمل (بديل عن صف KPIs المكرر) ── */}
+      <WorkflowPipeline stats={stats} totalOpen={stats.totalOpen} />
 
-      {urgentCount > 0 && (
-        <AlertBanner
-          icon={Flame}
-          tone="red"
-          title={`${urgentCount} حالة عاجلة مفتوحة`}
-          description={`${stats.criticalOpen} حرجة · ${stats.highOpen} عالية الأولوية`}
-        />
-      )}
+      {/* ── تنبيهات مركّزة (واحدة لكل نوع) ── */}
+      <PriorityAlert
+        waitingReview={stats.waitingReview}
+        highOpen={stats.highOpen}
+      />
 
-      <WorkflowPipeline stats={stats} />
+      {/* ── مؤشرات مختصرة — بدون تكرار مسار العمل ── */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
+        <KpiTile label="عالية" value={stats.highOpen} href="/cases" icon={AlertTriangle} accent="amber" urgent={stats.highOpen > 0} />
+        <KpiTile label="متوسطة" value={stats.mediumOpen} href="/cases" icon={Minus} accent="sky" />
+        <KpiTile label="منخفضة" value={stats.lowOpen} href="/cases" icon={ArrowDown} accent="slate" />
+        <KpiTile label="جديدة اليوم" value={stats.createdToday} href="/cases" icon={CalendarPlus} accent="sky" />
+        <KpiTile label="بدون إسناد" value={stats.unassigned} href="/cases?simpleStatus=IN_PROGRESS" icon={UserX} accent="amber" urgent={stats.unassigned > 0} />
+        <KpiTile label="بانتظار نشر" value={stats.waitingDeployment} href="/cases?simpleStatus=IN_PROGRESS" icon={Rocket} accent="sky" />
+        <KpiTile label="أعطال مفتوحة" value={stats.bugsOpen} href="/cases" icon={Bug} accent="primary" urgent={stats.bugsOpen > 0} />
+      </div>
 
-      {data.escalatedSystemBugs.length > 0 && (
-        <Link
-          href="/cases?status=AWAITING_APPROVAL"
-          className="block rounded-2xl border-2 border-violet-300/60 bg-gradient-to-l from-violet-500/10 via-card to-primary/5 p-5 md:p-6 shadow-sm hover:shadow-md hover:border-violet-400/70 transition-all"
-        >
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
-              <Bug className="h-7 w-7" />
+      {/* ── قوائم الحالات (تبويب واحد بدل 4 بطاقات منفصلة) ── */}
+      <div className="rounded-2xl border-2 bg-card shadow-sm overflow-hidden">
+        <Tabs value={queueTab} onValueChange={setQueueTab} dir="rtl">
+          <div className="border-b border-border/60 bg-muted/20 px-4 pt-4 pb-0">
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <Inbox className="h-5 w-5 text-primary" />
+              <h3 className="text-base font-black">قوائم العمل</h3>
             </div>
-            <div className="flex-1 min-w-[200px] text-start">
-              <p className="text-lg font-black">بلاغات System Bug — من منسق الدعم</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {data.escalatedSystemBugs.length}{" "}
-                {data.escalatedSystemBugs.length === 1 ? "حالة" : "حالات"} مُصعّدة للمراجعة والإسناد
-              </p>
-            </div>
-            <ChevronLeft className="h-6 w-6 text-muted-foreground shrink-0" />
+            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 h-auto gap-1 bg-transparent p-0">
+              <TabsTrigger value="review" className="gap-2 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm rounded-t-xl rounded-b-none border border-transparent data-[state=active]:border-border data-[state=active]:border-b-card">
+                <Bug className="h-4 w-4" />
+                للمراجعة
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-black tabular-nums">
+                  {data.waitingReview.length}
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="dev" className="gap-2 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm rounded-t-xl rounded-b-none border border-transparent data-[state=active]:border-border data-[state=active]:border-b-card">
+                <Wrench className="h-4 w-4" />
+                المطورين
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-black tabular-nums">
+                  {data.assignedToDevelopers.length}
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="solved" className="gap-2 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm rounded-t-xl rounded-b-none border border-transparent data-[state=active]:border-border data-[state=active]:border-b-card">
+                <CheckCircle2 className="h-4 w-4" />
+                محلولة
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-black tabular-nums">
+                  {data.solvedAwaitingClose.length}
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="closed" className="gap-2 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm rounded-t-xl rounded-b-none border border-transparent data-[state=active]:border-border data-[state=active]:border-b-card">
+                <Archive className="h-4 w-4" />
+                مغلقة اليوم
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-black tabular-nums">
+                  {data.closedToday.length}
+                </span>
+              </TabsTrigger>
+            </TabsList>
           </div>
-        </Link>
-      )}
 
-      {/* حالة سير العمل */}
-      <KpiSection title="حالة سير العمل" description="توزيع الحالات حسب مرحلة المعالجة">
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-          <KpiTile label="System Bug — للمراجعة" value={stats.waitingReview} href="/cases?status=AWAITING_APPROVAL" icon={Bug} accent="sky" urgent={stats.waitingReview > 0} />
-          <KpiTile label="عند المطورين" value={stats.assignedToDevelopers} href="/cases?simpleStatus=IN_PROGRESS" icon={Wrench} accent="amber" />
-          <KpiTile label="محلولة — بانتظار تأكيد" value={stats.solvedAwaitingClose} href="/cases?simpleStatus=SOLVED" icon={CheckCircle2} accent="emerald" urgent={stats.solvedAwaitingClose > 0} />
-          <KpiTile label="مغلقة اليوم" value={stats.closedToday} href="/cases?simpleStatus=CLOSED" icon={Archive} accent="slate" />
-          <KpiTile label="مفتوحة (إجمالي)" value={stats.totalOpen} href="/cases" icon={Layers} accent="primary" />
+          <div className="p-5">
+            <TabsContent value="review" className="mt-0">
+              <CaseQueueList
+                cases={data.waitingReview}
+                emptyText="لا حالات System Bug بانتظار المراجعة — ممتاز!"
+                badge={() => <StatusBadge status="IN_PROGRESS" label="System Bug" />}
+              />
+            </TabsContent>
+            <TabsContent value="dev" className="mt-0">
+              <CaseQueueList
+                cases={data.assignedToDevelopers}
+                emptyText="لا حالات معيّنة للمطورين حالياً"
+                renderSecondary={(c) =>
+                  `${c.assignedDeveloperName ?? "—"} · ${simpleStatusLabel(c.status)}`
+                }
+              />
+            </TabsContent>
+            <TabsContent value="solved" className="mt-0">
+              <CaseQueueList
+                cases={data.solvedAwaitingClose}
+                emptyText="لا حالات محلولة بانتظار تأكيدك"
+                badge={() => <StatusBadge status="SOLVED" label="محلول" />}
+              />
+            </TabsContent>
+            <TabsContent value="closed" className="mt-0">
+              <CaseQueueList
+                cases={data.closedToday}
+                emptyText="لم تُغلق حالات اليوم بعد"
+                renderSecondary={(c) => formatRelativeDate(c.updatedAt)}
+              />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </div>
+
+      {/* ── تحليلات — صف واحد مدمج ── */}
+      <div className="grid gap-5 lg:grid-cols-3">
+        <div className="lg:col-span-1">
+          <WeeklyTrendChart data={data.weeklyTrend} />
         </div>
-      </KpiSection>
-
-      {/* الأولوية */}
-      <KpiSection title="مؤشرات الأولوية" description="الحالات المفتوحة حسب درجة الأولوية">
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-          <KpiTile label="حرجة" value={stats.criticalOpen} href="/cases" icon={Flame} accent="amber" urgent={stats.criticalOpen > 0} />
-          <KpiTile label="عالية" value={stats.highOpen} href="/cases" icon={AlertTriangle} accent="amber" />
-          <KpiTile label="متوسطة" value={stats.mediumOpen} href="/cases" icon={Minus} accent="sky" />
-          <KpiTile label="منخفضة" value={stats.lowOpen} href="/cases" icon={ArrowDown} accent="slate" />
-        </div>
-      </KpiSection>
-
-      {/* تشغيلية */}
-      <KpiSection title="مؤشرات تشغيلية" description="نشاط اليوم وحالات خاصة">
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-          <KpiTile label="جديدة اليوم" value={stats.createdToday} href="/cases" icon={CalendarPlus} accent="sky" />
-          <KpiTile label="أعطال مفتوحة" value={stats.bugsOpen} href="/cases" icon={Bug} accent="primary" urgent={stats.bugsOpen > 0} />
-          <KpiTile label="بانتظار نشر" value={stats.waitingDeployment} href="/cases?simpleStatus=IN_PROGRESS" icon={Rocket} accent="sky" />
-          <KpiTile label="بدون إسناد" value={stats.unassigned} href="/cases?simpleStatus=IN_PROGRESS" icon={UserX} accent="amber" urgent={stats.unassigned > 0} />
-          <KpiTile label="محلولة اليوم" value={stats.resolvedToday} href="/cases?simpleStatus=SOLVED" icon={CheckCircle2} accent="emerald" />
-          <KpiTile label="مغلقة (إجمالي)" value={stats.totalClosed} href="/cases?simpleStatus=CLOSED" icon={Archive} accent="slate" />
-        </div>
-      </KpiSection>
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <WeeklyTrendChart data={data.weeklyTrend} />
 
         {data.topIssueToday && (
           <div className="rounded-2xl border-2 bg-card overflow-hidden shadow-sm flex flex-col">
@@ -358,110 +486,81 @@ export function OperationsDashboardContent() {
               </div>
               <div>
                 <h3 className="text-base font-black">أكثر مشكلة اليوم</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">النوع الأكثر تكراراً</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{data.topIssueToday.label}</p>
               </div>
             </div>
-            <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+            <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
               <p className="text-4xl font-black text-primary tabular-nums">{data.topIssueToday.count}</p>
-              <p className="text-lg font-black mt-2">{data.topIssueToday.label}</p>
-              <p className="text-sm text-muted-foreground mt-1">حالة اليوم</p>
+              <p className="text-sm text-muted-foreground mt-2">حالة اليوم</p>
             </div>
           </div>
         )}
-      </div>
 
-      {data.byTeam.length > 0 && (
-        <div className="rounded-2xl border-2 bg-card overflow-hidden shadow-sm">
-          <div className="flex items-center gap-3 border-b border-border/60 bg-muted/20 px-5 py-4">
-            <div className="rounded-xl bg-primary/10 p-2.5">
-              <UsersRound className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-base font-black">حمل الفرق</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">الحالات المفتوحة لكل فريق</p>
-            </div>
-          </div>
-          <div className="p-5 md:p-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {data.byTeam.slice(0, 8).map(({ label, count }) => {
-              const maxTeam = data.byTeam[0]?.count ?? 1;
-              const pct = Math.round((count / maxTeam) * 100);
-              return (
-                <div key={label} className="rounded-xl border-2 p-4 bg-muted/10">
-                  <div className="flex justify-between items-center mb-2 gap-2">
-                    <span className="font-bold text-sm truncate">{label}</span>
-                    <span className="text-xl font-black text-primary tabular-nums shrink-0">{count}</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full bg-brand-gradient rounded-full" style={{ width: `${Math.max(pct, 6)}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {data.byType.length > 0 && (
-        <div className="rounded-2xl border-2 bg-card overflow-hidden shadow-sm">
-          <div className="flex items-center gap-3 border-b border-border/60 bg-muted/20 px-5 py-4">
-            <div className="rounded-xl bg-primary/10 p-2.5">
-              <BarChart3 className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-base font-black">توزيع الحالات حسب النوع</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">نسبة كل نوع من إجمالي الحالات</p>
-            </div>
-          </div>
-          <div className="p-5 md:p-6">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {data.byType.map(({ label, count }) => {
-                const total = stats.totalOpen + stats.closedToday + count;
-                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+        {data.byTeam.length > 0 && (
+          <InsightPanel title="حمل الفرق" subtitle="حالات مفتوحة لكل فريق" icon={UsersRound}>
+            <div className="space-y-3">
+              {data.byTeam.slice(0, 5).map(({ label, count }) => {
+                const maxTeam = data.byTeam[0]?.count ?? 1;
+                const pct = Math.round((count / maxTeam) * 100);
                 return (
-                  <div key={label} className="rounded-xl border-2 p-4 bg-gradient-to-br from-muted/20 to-transparent hover:border-primary/25 transition-colors">
-                    <div className="flex justify-between items-center mb-3 gap-2">
+                  <div key={label}>
+                    <div className="flex justify-between items-center mb-1 gap-2">
                       <span className="font-bold text-sm truncate">{label}</span>
-                      <span className="text-2xl font-black text-primary tabular-nums shrink-0">{count}</span>
+                      <span className="text-sm font-black text-primary tabular-nums shrink-0">{count}</span>
                     </div>
-                    <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full bg-brand-gradient rounded-full transition-all duration-500" style={{ width: `${Math.max(pct, 6)}%` }} />
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-brand-gradient rounded-full" style={{ width: `${Math.max(pct, 6)}%` }} />
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1.5 tabular-nums">{pct}%</p>
                   </div>
                 );
               })}
             </div>
-          </div>
-        </div>
-      )}
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <SectionCard title="System Bug — للمراجعة" count={data.waitingReview.length} href="/cases?status=AWAITING_APPROVAL" icon={Bug} emptyText="لا حالات مُصعّدة — ممتاز!">
-          {data.waitingReview.slice(0, 4).map((c) => (
-            <QuickRow key={c.id} href={`/cases/${c.id}`} primary={c.title} secondary={c.number} badge={<StatusBadge status={toSimpleCaseStatus(c.status)} label="System Bug" />} />
-          ))}
-        </SectionCard>
-        <SectionCard title="معيّنة للمطورين" count={data.assignedToDevelopers.length} href="/cases?simpleStatus=IN_PROGRESS" icon={Wrench} emptyText="لا حالات معيّنة حالياً">
-          {data.assignedToDevelopers.slice(0, 4).map((c) => (
-            <QuickRow key={c.id} href={`/cases/${c.id}`} primary={c.title} secondary={`${c.assignedDeveloperName ?? "—"} · ${simpleStatusLabel(c.status)}`} />
-          ))}
-        </SectionCard>
-        <SectionCard title="محلولة — بانتظار تأكيدي" count={data.solvedAwaitingClose.length} href="/cases?simpleStatus=SOLVED" icon={CheckCircle2} emptyText="لا حالات بانتظار الإغلاق">
-          {data.solvedAwaitingClose.slice(0, 4).map((c) => (
-            <QuickRow key={c.id} href={`/cases/${c.id}`} primary={c.title} secondary={c.number} badge={<StatusBadge status="SOLVED" label="محلول" />} />
-          ))}
-        </SectionCard>
-        <SectionCard title="مغلقة اليوم" count={data.closedToday.length} href="/cases?simpleStatus=CLOSED" icon={Archive} emptyText="لم تُغلق حالات اليوم بعد">
-          {data.closedToday.slice(0, 4).map((c) => (
-            <QuickRow key={c.id} href={`/cases/${c.id}`} primary={c.title} secondary={formatRelativeDate(c.updatedAt)} />
-          ))}
-        </SectionCard>
+          </InsightPanel>
+        )}
       </div>
 
-      <SectionCard title="آخر النشاطات" count={data.latestActivities.length} href="/cases" icon={Activity} emptyText="لا نشاطات بعد">
+      {data.byType.length > 0 && (
+        <InsightPanel title="توزيع أنواع الحالات" subtitle="نسبة كل نوع" icon={BarChart3}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {data.byType.map(({ label, count }) => {
+              const total = data.byType.reduce((s, t) => s + t.count, 0);
+              const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+              return (
+                <div key={label} className="rounded-xl border-2 p-3 bg-muted/10">
+                  <div className="flex justify-between items-center gap-2 mb-2">
+                    <span className="font-bold text-sm truncate">{label}</span>
+                    <span className="text-lg font-black text-primary tabular-nums">{count}</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-brand-gradient rounded-full" style={{ width: `${Math.max(pct, 8)}%` }} />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1 tabular-nums">{pct}%</p>
+                </div>
+              );
+            })}
+          </div>
+        </InsightPanel>
+      )}
+
+      {/* ── آخر النشاطات ── */}
+      <SectionCard
+        title="آخر النشاطات"
+        count={data.latestActivities.length}
+        href="/cases"
+        icon={Activity}
+        emptyText="لا نشاطات بعد"
+      >
         <div className="space-y-2">
-          {data.latestActivities.slice(0, 6).map((a) => (
-            <ActivityItem key={a.id} action={a.action} details={a.details} caseNumber={a.caseNumber} actorName={a.actorName} createdAt={a.createdAt} caseId={a.caseId} />
+          {data.latestActivities.slice(0, 5).map((a) => (
+            <ActivityItem
+              key={a.id}
+              action={a.action}
+              details={a.details}
+              caseNumber={a.caseNumber}
+              actorName={a.actorName}
+              createdAt={a.createdAt}
+              caseId={a.caseId}
+            />
           ))}
         </div>
       </SectionCard>

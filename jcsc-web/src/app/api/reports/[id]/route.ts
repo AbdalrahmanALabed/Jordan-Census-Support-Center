@@ -89,7 +89,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ? censusSystemToLabel(affectedSystem)
       : existing.affectedSystem ?? undefined;
     if (linkedCase) {
-      const result = await classifyAndAssignCaseDb(
+      let assignResult = await classifyAndAssignCaseDb(
         linkedCase.id,
         "BUG",
         actorId,
@@ -103,8 +103,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           affectedSystem: systemLabel,
         }
       );
-      if (!result) {
-        return NextResponse.json({ error: "فشل إسناد الحالة المرتبطة" }, { status: 400 });
+      // Case may already be assigned if a prior attempt partially succeeded
+      if (
+        !assignResult &&
+        linkedCase.status === "IN_PROGRESS" &&
+        linkedCase.caseType === "BUG" &&
+        linkedCase.assignedDeveloperId === resolvedId
+      ) {
+        assignResult = { updated: linkedCase, assigneeId: resolvedId };
+      }
+      if (!assignResult) {
+        return NextResponse.json(
+          {
+            error: "فشل إسناد الحالة المرتبطة",
+            details: linkedCase.status !== "OPEN" && linkedCase.status !== "UNDER_REVIEW" && linkedCase.status !== "AWAITING_APPROVAL"
+              ? `حالة البلاغ: ${linkedCase.status} — لا يمكن الإسناد من هذه الحالة`
+              : "تعذّر تحديث الحالة",
+          },
+          { status: 400 }
+        );
       }
       await sendNotification({
         userId: resolvedId,

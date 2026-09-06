@@ -208,6 +208,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermission[] = [
       "reject_reports",
       "view_issues",
       "close_issues",
+      "manage_users",
     ],
   },
   {
@@ -221,6 +222,7 @@ export {
   isSupervisorRole,
   isSuperAdminRole,
   isSupportCoordinatorRole,
+  isSupportSupervisorRole,
   isManagerRole,
   PERMISSION_LABELS as PERMISSION_LABELS_DB,
 } from "@/lib/permissions";

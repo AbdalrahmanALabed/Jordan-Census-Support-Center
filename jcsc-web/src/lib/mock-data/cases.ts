@@ -44,7 +44,7 @@ export const mockCases: Case[] = [
     id: "case2",
     number: "CASE-2026-002",
     title: "المستخدمون لا يعرفون استخدام الاستبيان",
-    description: "مشرف معان: المستخدمون يحتاجون تدريب على الاستبيان الجديد",
+    description: "دعم فني معان: المستخدمون يحتاجون تدريب على الاستبيان الجديد",
     caseType: "TRAINING_ISSUE",
     status: "RESOLVED",
     priority: "LOW",

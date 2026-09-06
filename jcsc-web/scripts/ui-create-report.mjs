@@ -20,8 +20,8 @@ async function main() {
     console.log("1/7 — فتح صفحة تسجيل الدخول...");
     await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
 
-    console.log("2/7 — اختيار حساب المشرف الميداني...");
-    await page.getByRole("button", { name: /مشرف ميداني/i }).click();
+    console.log("2/7 — اختيار حساب الدعم الفني المراكز...");
+    await page.getByRole("button", { name: /الدعم الفني المراكز/i }).click();
     await page.locator('input[type="password"]').fill("jcsc2026");
 
     console.log("3/7 — تسجيل الدخول...");

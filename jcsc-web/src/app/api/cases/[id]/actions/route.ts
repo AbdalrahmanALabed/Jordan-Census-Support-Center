@@ -28,7 +28,8 @@ import {
 } from "@/lib/cases/server";
 import { sendNotification, notifySuperAdmins } from "@/lib/notifications/server";
 import { resolveAssigneeId } from "@/lib/assignees/server";
-import { isDeveloperRole, isSupportCoordinatorRole } from "@/lib/permissions";
+import { isDeveloperRole, isSupportCoordinatorRole, isSuperAdminRole } from "@/lib/permissions";
+import { isCaseAssignedToCoordinator } from "@/lib/coordinator-routing";
 
 const COORDINATOR_ALLOWED_ACTIONS = new Set([
   "coordinator_escalate_system_bug",
@@ -69,6 +70,16 @@ export async function POST(
   const existing = await getCaseById(id);
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (isSupportCoordinatorRole(session!.user.role) && !isSuperAdminRole(session!.user.role as import("@prisma/client").UserRole)) {
+    const allowed = await isCaseAssignedToCoordinator(actorId, {
+      assignedCoordinatorId: existing.assignedCoordinatorId,
+      governorate: existing.governorate,
+    });
+    if (!allowed) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   if (
@@ -342,11 +353,14 @@ export async function POST(
       ) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
+      if (!body.url || String(body.url).includes("placeholder")) {
+        return NextResponse.json({ error: "رابط المرفق غير صالح" }, { status: 400 });
+      }
       const att = await addCaseAttachmentDb({
         caseId: id,
         name: body.name,
         type: body.type ?? "IMAGE",
-        url: body.url ?? "/uploads/placeholder",
+        url: body.url,
         size: body.size,
         uploadedBy: actorName,
       });
@@ -447,7 +461,7 @@ export async function POST(
       }
       const resolvedAssignee = await resolveAssigneeId(String(rawAssignee));
       if (!resolvedAssignee) {
-        return NextResponse.json({ error: "المسؤول غير موجود — شغّل npm run db:seed" }, { status: 400 });
+        return NextResponse.json({ error: "المسؤول غير موجود أو غير نشط — تأكد من دور مطوّr" }, { status: 400 });
       }
       const result = await reviewCaseAsProblemDb(id, actorId, actorName, {
         assignedTeam: body.assignedTeam ?? "Developer",

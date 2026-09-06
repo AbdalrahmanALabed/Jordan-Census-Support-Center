@@ -78,7 +78,7 @@ export function CoordinatorDashboardContent() {
         <div className="flex-1 min-w-[200px]">
           <p className="text-xl font-black text-amber-900 dark:text-amber-100">الحلول</p>
           <p className="text-sm text-muted-foreground mt-1">
-            مرجع سريع للمشاكل الشائعة — للتصنيف أو مساعدة المشرفين
+            مرجع سريع للمشاكل الشائعة — للتصنيف أو مساعدة دعم المراكز
           </p>
         </div>
         <span className="rounded-xl bg-brand-gradient px-5 py-2.5 text-sm font-black text-white shrink-0">
@@ -96,7 +96,7 @@ export function CoordinatorDashboardContent() {
           </div>
           <div className="flex-1 min-w-[200px]">
             <p className="text-xl font-black text-sky-900 dark:text-sky-100">
-              {stats.pending} بلاغ من المشرفين
+              {stats.pending} بلاغ من دعم المراكز
             </p>
             <p className="text-sm text-muted-foreground mt-1">
               صنّف: System Bug → السوبر أدمن · غير ذلك → إغلاق

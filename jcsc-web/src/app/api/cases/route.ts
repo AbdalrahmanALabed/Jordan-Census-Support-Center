@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { CaseType, CaseStatus } from "@prisma/client";
 import { requireSession, hasApiPermission } from "@/lib/api-auth";
-import { isSuperAdminRole } from "@/lib/permissions";
+import { isSuperAdminRole, isSupportSupervisorRole, isSupportCoordinatorRole } from "@/lib/permissions";
+import { getManagedUserIds, isCaseVisibleToSupportSupervisor } from "@/lib/support-supervisor/server";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { sendNotification } from "@/lib/notifications/server";
@@ -59,12 +60,28 @@ export async function GET(req: NextRequest) {
   const createdById =
     (!canViewAll && canViewOwn) || mineOnly ? session!.user.id : undefined;
 
+  let createdByIds: string[] | undefined;
+  let assignedCoordinatorId: string | undefined;
+
+  if (isSupportSupervisorRole(session!.user.role)) {
+    createdByIds = await getManagedUserIds(session!.user.id);
+    if (createdByIds.length === 0) {
+      return NextResponse.json([]);
+    }
+  }
+
+  if (isSupportCoordinatorRole(session!.user.role) && !isSuperAdminRole(session!.user.role as import("@prisma/client").UserRole)) {
+    assignedCoordinatorId = session!.user.id;
+  }
+
   const cases = await listCases({
     search,
     caseType,
     status,
     simpleStatus: simpleStatus && simpleStatus !== "ALL" ? simpleStatus : undefined,
-    createdById,
+    createdById: createdByIds ? undefined : createdById,
+    createdByIds,
+    assignedCoordinatorId,
     limit: limit && limit > 0 ? limit : undefined,
   });
   return NextResponse.json(cases.map(mapCaseToClient));
@@ -103,7 +120,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "الوصف والنظام مطلوبان" }, { status: 400 });
   }
 
-  // المشرف: حقول محدودة فقط — بانتظار تصنيف السوبر أدمن
+  // الدعم الفني المراكز: حقول محدودة فقط — بانتظار تصنيف منسق الدعم
   if (!canManage && canSubmit) {
     caseType = "QUESTION";
     priority = "MEDIUM";

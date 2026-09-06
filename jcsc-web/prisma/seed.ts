@@ -5,6 +5,7 @@ import {
   AHMED_AY_PROFILE,
   applyDeveloperEscalationHierarchy,
 } from "../src/lib/developers/escalation-hierarchy";
+import { REGIONAL_COORDINATORS } from "../src/lib/coordinator-routing";
 
 const prisma = new PrismaClient();
 
@@ -23,6 +24,7 @@ const PERMISSIONS = [
   { key: "view_queues", label: "عرض الطوابير", screen: "queues", action: "view" },
   { key: "manage_users", label: "إدارة المستخدمين", screen: "users", action: "edit" },
   { key: "manage_roles", label: "إدارة الصلاحيات", screen: "roles", action: "edit" },
+  { key: "assign_user_permissions", label: "منح صلاحيات للفريق", screen: "users", action: "assign" },
   { key: "manage_routing", label: "إدارة قواعد التوجيه", screen: "routing", action: "edit" },
   { key: "view_audit", label: "عرض سجل التدقيق", screen: "audit", action: "view" },
   { key: "log_report_fallback", label: "تسجيل ملاحظة نيابةً", screen: "reports", action: "create" },
@@ -30,6 +32,12 @@ const PERMISSIONS = [
 
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   SUPERVISOR: ["view_dashboard", "submit_report", "view_own_reports", "view_issues"],
+  SUPPORT_SUPERVISOR: [
+    "view_dashboard",
+    "view_issues",
+    "manage_users",
+    "assign_user_permissions",
+  ],
   SUPPORT_COORDINATOR: [
     "view_dashboard",
     "submit_report",
@@ -38,6 +46,7 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     "reject_reports",
     "view_issues",
     "close_issues",
+    "manage_users",
   ],
   ADMIN: PERMISSIONS.map((p) => p.key),
   DEVELOPER: ["view_dashboard", "view_issues", "manage_issues", "view_queues"],
@@ -139,9 +148,16 @@ async function main() {
 
   const users = [
     { name: "Super Admin", email: "admin@jcsc.gov.jo", role: UserRole.ADMIN, team: "إدارة", governorate: "عمان" },
-    { name: "منسق الدعم", email: "coordinator@jcsc.gov.jo", role: UserRole.SUPPORT_COORDINATOR, team: "الدعم", governorate: "عمان" },
-    { name: "مشرف ميداني", email: "supervisor@jcsc.gov.jo", role: UserRole.SUPERVISOR, team: "ميدان", governorate: "إربد" },
-    { name: "مشرف العقبة", email: "supervisor.aqaba@jcsc.gov.jo", role: UserRole.SUPERVISOR, team: "ميدان", governorate: "العقبة" },
+    { name: "مشرف الدعم", email: "support-supervisor@jcsc.gov.jo", role: UserRole.SUPPORT_SUPERVISOR, team: "الدعم", governorate: "عمان" },
+    ...REGIONAL_COORDINATORS.map((c) => ({
+      name: c.name,
+      email: c.email,
+      role: UserRole.SUPPORT_COORDINATOR,
+      team: "منسق الدعم",
+      governorate: c.governorates[0],
+    })),
+    { name: "دعم فني — إربد", email: "supervisor@jcsc.gov.jo", role: UserRole.SUPERVISOR, team: "الدعم الفني المراكز", governorate: "إربد" },
+    { name: "دعم فني — العقبة", email: "supervisor.aqaba@jcsc.gov.jo", role: UserRole.SUPERVISOR, team: "الدعم الفني المراكز", governorate: "العقبة" },
     { name: "محمد حازم", email: "hazem@jcsc.gov.jo", role: UserRole.DEVELOPER, team: "Developer", governorate: "عمان" },
     { name: "بوران عواد", email: "boran@jcsc.gov.jo", role: UserRole.DEVELOPER, team: "Developer", governorate: "عمان" },
     { name: "حمزة عياد", email: "hamza@jcsc.gov.jo", role: UserRole.DEVELOPER, team: "Developer", governorate: "عمان" },
@@ -178,18 +194,32 @@ async function main() {
 
   const supervisorId = createdUsers["supervisor@jcsc.gov.jo"];
   const supervisorAqabaId = createdUsers["supervisor.aqaba@jcsc.gov.jo"];
-  const coordinatorId = createdUsers["coordinator@jcsc.gov.jo"];
+  const razanId = createdUsers["razan.m@jcsc.gov.jo"];
+  const supportSupervisorId = createdUsers["support-supervisor@jcsc.gov.jo"];
   const devId = createdUsers["hazem@jcsc.gov.jo"];
   const dbId = createdUsers["mohammad.h@jcsc.gov.jo"];
   const adminId = createdUsers["admin@jcsc.gov.jo"];
 
   await prisma.user.update({
-    where: { id: supervisorId },
+    where: { id: supportSupervisorId },
     data: { directManagerId: adminId },
+  });
+  for (const coord of REGIONAL_COORDINATORS) {
+    const id = createdUsers[coord.email];
+    if (id) {
+      await prisma.user.update({
+        where: { id },
+        data: { directManagerId: adminId },
+      });
+    }
+  }
+  await prisma.user.update({
+    where: { id: supervisorId },
+    data: { directManagerId: supportSupervisorId },
   });
   await prisma.user.update({
     where: { id: supervisorAqabaId },
-    data: { directManagerId: adminId },
+    data: { directManagerId: supportSupervisorId },
   });
 
   await applyDeveloperEscalationHierarchy(prisma, createdUsers);
@@ -245,7 +275,7 @@ async function main() {
 
   await seedQaData(prisma, {
     adminId,
-    coordinatorId,
+    coordinatorId: razanId,
     supervisorId,
     supervisorAqabaId,
     devHazemId: devId,

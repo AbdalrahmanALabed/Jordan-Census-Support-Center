@@ -6,7 +6,7 @@ import { useAuthReady } from "@/hooks/use-effective-user";
 import { isSupervisorRole, hasPermission } from "@/lib/reports";
 import { isSuperAdminRole, isSupportCoordinatorRole } from "@/lib/permissions";
 
-/** زر عائم — للمنسق على الجوال فقط (المشرف يستخدم الشريط العلوي أو شاشة الإنشاء) */
+/** زر عائم — للمنسق على الجوال فقط (دعم المراكز يستخدم الشريط العلوي أو شاشة الإنشاء) */
 export function MobileFab() {
   const { user } = useAuthReady();
   const role = user?.role;

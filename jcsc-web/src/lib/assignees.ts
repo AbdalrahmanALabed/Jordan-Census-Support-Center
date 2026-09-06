@@ -33,9 +33,12 @@ export const ASSIGNEE_SEED_USERS: { name: AssigneeName; email: string }[] = [
 export function sortAssigneesByName<T extends { name: string }>(users: T[]): T[] {
   const order = new Map(ASSIGNEE_NAMES.map((n, i) => [n, i]));
   return [...users].sort((a, b) => {
-    const ai = order.get(a.name as AssigneeName) ?? 999;
-    const bi = order.get(b.name as AssigneeName) ?? 999;
-    return ai - bi;
+    const ai = order.get(a.name as AssigneeName);
+    const bi = order.get(b.name as AssigneeName);
+    if (ai != null && bi != null) return ai - bi;
+    if (ai != null) return -1;
+    if (bi != null) return 1;
+    return a.name.localeCompare(b.name, "ar");
   });
 }
 

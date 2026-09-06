@@ -89,6 +89,8 @@ export interface Case {
   assignedDeveloperName?: string;
   assignedDeveloperRole?: string;
   assignedDeveloperTeam?: string;
+  assignedCoordinatorId?: string;
+  assignedCoordinatorName?: string;
   deploymentStatus?: "NOT_STARTED" | "QUEUED" | "IN_PROGRESS" | "DEPLOYED";
   testingStatus?: "NOT_STARTED" | "IN_PROGRESS" | "PASSED" | "FAILED";
   resolutionNotes?: string;
@@ -103,6 +105,7 @@ export interface Case {
   mergedIntoCaseId?: string;
   createdBy: string;
   createdByName: string;
+  createdByRole?: string;
   governorate: string;
   createdAt: string;
   updatedAt: string;
@@ -182,6 +185,15 @@ export function caseInCoordinatorQueue(status: CaseStatus): boolean {
 /** مقبولة — تحتاج تصنيف وإسناد */
 export function caseNeedsClassifyAssign(status: CaseStatus): boolean {
   return status === "UNDER_REVIEW";
+}
+
+/** Coordinator / super-admin can classify & assign from these statuses */
+export function caseCanClassifyAndAssign(status: CaseStatus): boolean {
+  return (
+    caseNeedsCoordinatorReview(status) ||
+    caseNeedsClassifyAssign(status) ||
+    caseNeedsSuperAdminReview(status)
+  );
 }
 
 export function simpleStatusLabel(status: CaseStatus): string {

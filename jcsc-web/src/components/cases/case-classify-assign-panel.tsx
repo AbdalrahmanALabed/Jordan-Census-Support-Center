@@ -28,6 +28,8 @@ import {
   isQuickBugClassify,
   buildNotProblemReason,
   suggestNotAppIssueForCaseType,
+  normalizeAdminPriority,
+  normalizeAdminSeverity,
   type NotAppTechnicalIssueId,
 } from "@/lib/case-classification";
 import type { IssuePriority } from "@/lib/types";
@@ -53,8 +55,12 @@ export function CaseClassifyAssignPanel({ caseItem, onSuccess }: CaseClassifyAss
     (caseItem.caseType as CaseType) ?? "QUESTION"
   );
   const [assignedDeveloperId, setAssignedDeveloperId] = useState(caseItem.assignedDeveloperId ?? "");
-  const [priority, setPriority] = useState<IssuePriority>(caseItem.priority ?? "MEDIUM");
-  const [severity, setSeverity] = useState<CaseSeverity>(caseItem.severity ?? "MEDIUM");
+  const [priority, setPriority] = useState<IssuePriority>(
+    normalizeAdminPriority(caseItem.priority ?? "MEDIUM")
+  );
+  const [severity, setSeverity] = useState<CaseSeverity>(
+    normalizeAdminSeverity(caseItem.severity ?? "MEDIUM")
+  );
   const [notProblemIssueId, setNotProblemIssueId] = useState<NotAppTechnicalIssueId>("MDM");
   const [notProblemNote, setNotProblemNote] = useState("");
 

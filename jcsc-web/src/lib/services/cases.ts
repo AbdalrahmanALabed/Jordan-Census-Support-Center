@@ -15,7 +15,7 @@ import { mockReports } from "@/lib/mock-data/reports";
 import { mockIssues, mockUsers } from "@/lib/mock-data";
 import { mockPrefixedTicketNumber } from "@/lib/ticket-numbers";
 import { queueEmail } from "@/lib/email/engine";
-import { ASSIGNEE_NAMES, sortAssigneesByName } from "@/lib/assignees";
+import { sortAssigneesByName } from "@/lib/assignees";
 import { isTechnicalAssigneeRole } from "@/lib/developer-specialties";
 
 export interface CaseFilters {
@@ -74,9 +74,9 @@ type CaseDetailResponse = {
 export async function getCases(filters?: CaseFilters): Promise<Case[]> {
   const params = new URLSearchParams();
   if (filters?.search) params.set("search", filters.search);
-  if (filters?.caseType) params.set("caseType", filters.caseType);
-  if (filters?.status) params.set("status", filters.status);
-  if (filters?.simpleStatus) params.set("simpleStatus", filters.simpleStatus);
+  if (filters?.caseType && filters.caseType !== "ALL") params.set("caseType", filters.caseType);
+  if (filters?.status && filters.status !== "ALL") params.set("status", filters.status);
+  if (filters?.simpleStatus && filters.simpleStatus !== "ALL") params.set("simpleStatus", filters.simpleStatus);
   if (filters?.mine) params.set("mine", "true");
   if (filters?.limit) params.set("limit", String(filters.limit));
 
@@ -716,12 +716,7 @@ export async function getDeveloperUsers() {
   const { getUsersWithPermissions } = await import("@/lib/services/users");
   const users = await getUsersWithPermissions();
   return sortAssigneesByName(
-    users.filter(
-      (u) =>
-        u.isActive &&
-        isTechnicalAssigneeRole(u.role) &&
-        (ASSIGNEE_NAMES as readonly string[]).includes(u.name)
-    )
+    users.filter((u) => u.isActive && isTechnicalAssigneeRole(u.role))
   );
 }
 

@@ -9,6 +9,7 @@ datasource db {
 
 enum UserRole {
   ADMIN
+  SUPPORT_SUPERVISOR
   SUPPORT_COORDINATOR
   SUPPORT_MANAGER
   SUPPORT_L1
@@ -174,6 +175,7 @@ model User {
 
   casesCreated     Case[]           @relation("CaseCreator")
   casesAssigned    Case[]           @relation("CaseDeveloper")
+  casesCoordinated Case[]           @relation("CaseCoordinator")
   casesSolved      Case[]           @relation("CaseSolver")
   caseComments     CaseComment[]
   caseDecisions    CaseDecision[]
@@ -429,6 +431,7 @@ model Case {
   suggestedTeam         String?
   assignedTeam          String?
   assignedDeveloperId   String?
+  assignedCoordinatorId String?
   assignedAt            DateTime?
   deploymentStatus      DeploymentStatus  @default(NOT_STARTED)
   testingStatus         TestingStatus     @default(NOT_STARTED)
@@ -452,7 +455,8 @@ model Case {
 
   sourceReport      Report?            @relation("CaseSourceReport", fields: [sourceReportId], references: [id])
   linkedIssue       Issue?             @relation("CaseLinkedIssue", fields: [linkedIssueId], references: [id])
-  assignedDeveloper User?              @relation("CaseDeveloper", fields: [assignedDeveloperId], references: [id])
+  assignedDeveloper   User?              @relation("CaseDeveloper", fields: [assignedDeveloperId], references: [id])
+  assignedCoordinator User?              @relation("CaseCoordinator", fields: [assignedCoordinatorId], references: [id])
   solvedBy          User?              @relation("CaseSolver", fields: [solvedById], references: [id])
   createdBy         User               @relation("CaseCreator", fields: [createdById], references: [id])
   comments          CaseComment[]

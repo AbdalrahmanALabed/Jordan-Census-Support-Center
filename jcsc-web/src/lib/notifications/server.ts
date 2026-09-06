@@ -218,7 +218,15 @@ export function isEscalationType(type: string) {
   return type.startsWith("escalation_");
 }
 
-/** Notify all active support coordinators */
+/** Notify a specific support coordinator */
+export async function notifyCoordinator(
+  userId: string,
+  params: Omit<SendNotificationParams, "userId">
+) {
+  await sendNotification({ ...params, userId });
+}
+
+/** @deprecated Prefer notifyCoordinator for governorate routing */
 export async function notifySupportCoordinators(
   params: Omit<SendNotificationParams, "userId"> & { excludeUserId?: string }
 ) {

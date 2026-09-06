@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { CheckCircle, RotateCcw, Wrench, UserRound, ArrowUpRight } from "lucide-react";
@@ -27,19 +27,11 @@ import {
 import { CaseReviewPanel } from "@/components/cases/case-review-panel";
 import { CaseClassifyAssignPanel } from "@/components/cases/case-classify-assign-panel";
 import { SpecialtyAssignSelect } from "@/components/shared/specialty-assign-select";
-import { uploadFile } from "@/components/shared/file-upload-zone";
+import { FileUploadZone, type UploadedFile } from "@/components/shared/file-upload-zone";
 import { useUserStore } from "@/stores/user-store";
 import { isManagerRole } from "@/lib/reports";
 import { useToast } from "@/components/ui/toast";
 import { caseNeedsAcceptance, caseNeedsClassifyAssign } from "@/lib/cases";
-
-const ATTACH_TYPES = [
-  { type: "IMAGE" as const, label: "صورة" },
-  { type: "PDF" as const, label: "PDF" },
-  { type: "VIDEO" as const, label: "فيديو" },
-  { type: "VOICE" as const, label: "صوت" },
-  { type: "LOG" as const, label: "سجل" },
-];
 
 export function CaseActionsPanel({
   caseItem,
@@ -52,7 +44,6 @@ export function CaseActionsPanel({
 }) {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { currentUser } = useUserStore();
   const isManager = isManagerRole(currentUser?.role);
@@ -69,6 +60,8 @@ export function CaseActionsPanel({
   const [adminTransferDevId, setAdminTransferDevId] = useState("");
   const [adminTransferReason, setAdminTransferReason] = useState("");
   const [returnAdminReason, setReturnAdminReason] = useState("");
+  const [zoneFiles, setZoneFiles] = useState<UploadedFile[]>([]);
+  const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["case", caseItem.id] });
@@ -171,8 +164,7 @@ export function CaseActionsPanel({
   });
 
   const attachMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const uploaded = await uploadFile(file);
+    mutationFn: async (uploaded: UploadedFile) => {
       await addCaseAttachment(
         caseItem.id,
         uploaded.name,
@@ -181,12 +173,26 @@ export function CaseActionsPanel({
         uploaded.size
       );
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      toast("تم رفع المرفق", "success");
+    },
+    onError: onMutationError,
   });
 
-  const handleFilePick = () => {
-    fileRef.current?.click();
-  };
+  async function handleAttachmentUpload(files: UploadedFile[]) {
+    setZoneFiles(files);
+    for (const file of files) {
+      if (savedUrls.has(file.url)) continue;
+      try {
+        await attachMutation.mutateAsync(file);
+        setSavedUrls((prev) => new Set(prev).add(file.url));
+      } catch {
+        break;
+      }
+    }
+    setZoneFiles([]);
+  }
 
   if (simple === "CLOSED") {
     return (
@@ -423,7 +429,7 @@ export function CaseActionsPanel({
                 onChange={(e) => setInternalNote(e.target.checked)}
                 className="h-4 w-4"
               />
-              ملاحظة داخلية (لا يراها المشرف)
+              ملاحظة داخلية (لا يراها دعم المراكز)
             </label>
           )}
           <Button
@@ -441,31 +447,14 @@ export function CaseActionsPanel({
         <CardHeader className="pb-2 bg-muted/30 rounded-t-2xl">
           <CardTitle className="text-lg font-black">مرفقات</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <input
-            ref={fileRef}
-            type="file"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                attachMutation.mutate(file);
-                e.target.value = "";
-              }
-            }}
+        <CardContent>
+          <FileUploadZone
+            files={zoneFiles}
+            onChange={handleAttachmentUpload}
+            label="اسحب الملف هنا أو انقر للرفع"
+            maxFiles={6}
+            compact
           />
-          <div className="flex flex-wrap gap-2">
-            {ATTACH_TYPES.map((a) => (
-              <Button
-                key={a.type}
-                size="lg"
-                variant="outline"
-                onClick={handleFilePick}
-              >
-                + {a.label}
-              </Button>
-            ))}
-          </div>
         </CardContent>
       </Card>
     </div>

@@ -10,13 +10,15 @@ import type {
 } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { Case, CaseComment, CaseTimelineEvent, CaseDecision, CaseAttachment, SimpleCaseStatus } from "@/lib/cases/types";
-import { caseStatusesForSimple, caseNeedsClassifyAssign, caseNeedsSuperAdminReview } from "@/lib/cases/types";
+import { caseStatusesForSimple, caseCanClassifyAndAssign, caseNeedsSuperAdminReview } from "@/lib/cases/types";
 import { logCaseStatusChange, logCaseAssignment, logCaseReassignment, logCaseTimelineEvent, appendTimelineMeta, timelineRoleLabel } from "@/lib/cases/timeline-log";
 import { generatePrefixedTicketNumber } from "@/lib/ticket-numbers";
+import { resolveCoordinatorForGovernorate } from "@/lib/coordinator-routing";
 
 const caseInclude = {
   createdBy: true,
   assignedDeveloper: true,
+  assignedCoordinator: true,
   solvedBy: true,
   sourceReport: true,
   linkedIssue: true,
@@ -30,6 +32,7 @@ const caseInclude = {
 const caseListInclude = {
   createdBy: true,
   assignedDeveloper: true,
+  assignedCoordinator: true,
   solvedBy: true,
   sourceReport: true,
   linkedIssue: true,
@@ -79,6 +82,8 @@ export function mapCaseToClient(c: DbCase | DbCaseListItem): Case {
     assignedDeveloperName: c.assignedDeveloper?.name,
     assignedDeveloperRole: c.assignedDeveloper?.role,
     assignedDeveloperTeam: c.assignedDeveloper?.team ?? undefined,
+    assignedCoordinatorId: c.assignedCoordinatorId ?? undefined,
+    assignedCoordinatorName: c.assignedCoordinator?.name,
     deploymentStatus: c.deploymentStatus as Case["deploymentStatus"],
     testingStatus: c.testingStatus as Case["testingStatus"],
     resolutionNotes: c.resolutionNotes ?? undefined,
@@ -92,6 +97,7 @@ export function mapCaseToClient(c: DbCase | DbCaseListItem): Case {
     mergedIntoCaseId: c.mergedIntoCaseId ?? undefined,
     createdBy: c.createdById,
     createdByName: c.createdBy.name,
+  createdByRole: c.createdBy.role as Case["createdByRole"],
     governorate: c.governorate,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
@@ -152,6 +158,50 @@ export function mapCaseAttachment(a: DbCase["attachments"][number]): CaseAttachm
   };
 }
 
+function mapReportAttachmentToCaseView(
+  a: { id: string; name: string; type: string; url: string; size: string | null; createdAt: Date },
+  caseId: string
+): CaseAttachment {
+  const kindMap: Record<string, CaseAttachment["kind"]> = {
+    IMAGE: "image",
+    VIDEO: "video",
+    VOICE: "voice",
+    PDF: "pdf",
+    LOG: "log",
+  };
+  return {
+    id: `report-${a.id}`,
+    caseId,
+    name: a.name,
+    kind: kindMap[a.type] ?? "pdf",
+    url: a.url,
+    size: a.size ?? undefined,
+    uploadedBy: "من البلاغ",
+    createdAt: a.createdAt.toISOString(),
+  };
+}
+
+/** Case attachments, falling back to linked report attachments for older records */
+export async function resolveCaseAttachmentsForClient(
+  caseItem: DbCase | DbCaseListItem & { attachments: DbCase["attachments"]; sourceReportId: string | null }
+): Promise<CaseAttachment[]> {
+  const realCaseAttachments = caseItem.attachments.filter(
+    (a) => a.url && !a.url.includes("placeholder")
+  );
+  if (realCaseAttachments.length > 0) {
+    return realCaseAttachments.map(mapCaseAttachment);
+  }
+  if (!caseItem.sourceReportId) return [];
+
+  const report = await prisma.report.findUnique({
+    where: { id: caseItem.sourceReportId },
+    include: { attachments: true },
+  });
+  return (report?.attachments ?? [])
+    .filter((a) => a.url && !a.url.includes("placeholder"))
+    .map((a) => mapReportAttachmentToCaseView(a, caseItem.id));
+}
+
 export async function generateCaseNumber(affectedSystem?: string): Promise<string> {
   return generatePrefixedTicketNumber(affectedSystem);
 }
@@ -162,12 +212,20 @@ export async function listCases(filters?: {
   status?: CaseStatus | "ALL";
   simpleStatus?: SimpleCaseStatus | "ALL";
   createdById?: string;
+  createdByIds?: string[];
+  assignedCoordinatorId?: string;
   limit?: number;
 }) {
   const where: Prisma.CaseWhereInput = {};
 
-  if (filters?.createdById) {
+  if (filters?.createdByIds?.length) {
+    where.createdById = { in: filters.createdByIds };
+  } else if (filters?.createdById) {
     where.createdById = filters.createdById;
+  }
+
+  if (filters?.assignedCoordinatorId) {
+    where.assignedCoordinatorId = filters.assignedCoordinatorId;
   }
 
   if (filters?.caseType && filters.caseType !== "ALL") {
@@ -283,6 +341,11 @@ export async function createCaseManual(data: {
   const hasAssignee = Boolean(assignedDeveloperId || data.assignedTeam?.trim());
   const status = isBug && hasAssignee ? "IN_PROGRESS" : isBug ? "IN_PROGRESS" : "OPEN";
 
+  const coordinator =
+    status === "OPEN" && governorate !== "غير محدد"
+      ? await resolveCoordinatorForGovernorate(governorate)
+      : null;
+
   const created = await prisma.case.create({
     data: {
       number,
@@ -299,6 +362,7 @@ export async function createCaseManual(data: {
       ...(assignedDeveloperId ? assignDeveloperPatch(assignedDeveloperId) : {}),
       governorate,
       createdById: data.createdById,
+      assignedCoordinatorId: coordinator?.id ?? null,
       timeline: {
         create: {
           action: isBug ? "إنشاء خلل" : "إنشاء يدوي",
@@ -491,10 +555,7 @@ export async function classifyAndAssignCaseDb(
   const existing = await prisma.case.findUnique({ where: { id: caseId } });
   if (!existing) return null;
 
-  if (
-    !caseNeedsClassifyAssign(existing.status) &&
-    !caseNeedsSuperAdminReview(existing.status)
-  ) {
+  if (!caseCanClassifyAndAssign(existing.status)) {
     return null;
   }
 
@@ -920,6 +981,11 @@ export async function createCaseFromReport(data: {
   createdById: string;
   affectedSystem?: string;
 }) {
+  const report = await prisma.report.findUnique({
+    where: { id: data.reportId },
+    include: { attachments: true },
+  });
+
   const number = await generateCaseNumber(data.affectedSystem);
   const systemLabel =
     data.affectedSystem === "CALL_CENTER"
@@ -937,6 +1003,11 @@ export async function createCaseFromReport(data: {
     select: { role: true, name: true },
   });
 
+  const reportAttachments =
+    report?.attachments.filter((a) => a.url && !a.url.includes("placeholder")) ?? [];
+
+  const coordinator = await resolveCoordinatorForGovernorate(data.governorate);
+
   return prisma.case.create({
     data: {
       number,
@@ -952,15 +1023,39 @@ export async function createCaseFromReport(data: {
       affectedSystem: systemLabel,
       governorate: data.governorate,
       createdById: data.createdById,
+      assignedCoordinatorId: coordinator?.id ?? null,
+      attachments:
+        reportAttachments.length > 0
+          ? {
+              create: reportAttachments.map((a) => ({
+                name: a.name,
+                type: a.type,
+                url: a.url,
+                size: a.size,
+                uploadedBy: creator?.name ?? "الدعم الفني المراكز",
+              })),
+            }
+          : undefined,
       timeline: {
-        create: {
-          action: "حالة جديدة من الميدان",
-          details: appendTimelineMeta(`رقم البلاغ: ${data.reportNumber}`, {
-            role: timelineRoleLabel(creator?.role),
-          }),
-          actorId: data.createdById,
-          actorName: creator?.name,
-        },
+        create: [
+          {
+            action: "حالة جديدة من الميدان",
+            details: appendTimelineMeta(`رقم البلاغ: ${data.reportNumber}`, {
+              role: timelineRoleLabel(creator?.role),
+            }),
+            actorId: data.createdById,
+            actorName: creator?.name,
+          },
+          ...(coordinator
+            ? [
+                {
+                  action: "توجيه للمنسق",
+                  details: `${coordinator.name} — ${data.governorate}`,
+                  actorName: "النظام",
+                },
+              ]
+            : []),
+        ],
       },
     },
     include: caseInclude,

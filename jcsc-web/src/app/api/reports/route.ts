@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ReportStatus } from "@prisma/client";
 import { requireSession, hasApiPermission } from "@/lib/api-auth";
-import { isSupportCoordinatorRole } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import {
   generateReportNumber,
@@ -10,8 +9,9 @@ import {
   listReportsWithRelations,
 } from "@/lib/reports/server";
 import { prisma } from "@/lib/db";
-import { notifySupportCoordinators } from "@/lib/notifications/server";
+import { notifyCoordinator, notifySuperAdmins } from "@/lib/notifications/server";
 import { createCaseFromReport } from "@/lib/cases/server";
+import { resolveCoordinatorForGovernorate } from "@/lib/coordinator-routing";
 
 export async function GET(req: NextRequest) {
   const { session, response } = await requireSession();
@@ -118,11 +118,14 @@ export async function POST(req: NextRequest) {
       status,
       convertedIssueId,
       attachments: {
-        create: attachmentNames.map((a: { name: string; type: string; url?: string }) => ({
-          name: a.name,
-          type: a.type.toUpperCase(),
-          url: a.url || "/uploads/placeholder",
-        })),
+        create: attachmentNames
+          .filter((a: { name: string; type: string; url?: string }) => a.url && !a.url.includes("placeholder"))
+          .map((a: { name: string; type: string; url?: string; size?: number }) => ({
+            name: a.name,
+            type: a.type.toUpperCase(),
+            url: a.url!,
+            size: a.size ? String(a.size) : null,
+          })),
       },
     },
     include: {
@@ -144,17 +147,26 @@ export async function POST(req: NextRequest) {
       affectedSystem: system,
     });
 
-    await notifySupportCoordinators({
-      title: "بلاغ جديد — يحتاج تصنيف",
-      message: `${number} — ${enumeratorsAffected} مستخدم متأثر`,
+    const coordinator = await resolveCoordinatorForGovernorate(governorate);
+    if (coordinator) {
+      await notifyCoordinator(coordinator.id, {
+        title: "بلاغ جديد — محافظتك",
+        message: `${number} — ${governorate} — ${enumeratorsAffected} مستخدم متأثر`,
+        type: "report_new",
+        entityType: "Report",
+        entityId: report.id,
+        level: "warning",
+        actionRequired: true,
+      });
+    }
+
+    await notifySuperAdmins({
+      title: "بلاغ ميداني جديد",
+      message: `${number} — ${governorate}${coordinator ? ` → ${coordinator.name}` : ""}`,
       type: "report_new",
       entityType: "Report",
       entityId: report.id,
-      level: "warning",
-      actionRequired: true,
-      excludeUserId: isSupportCoordinatorRole(session!.user.role)
-        ? session!.user.id
-        : undefined,
+      level: "info",
     });
   }
 

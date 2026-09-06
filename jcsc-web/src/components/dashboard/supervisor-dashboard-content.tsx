@@ -194,7 +194,7 @@ export function SupervisorDashboardContent() {
   return (
     <div dir="rtl" className="content-container max-w-4xl space-y-6 pb-10 text-start">
       <PageHero
-        title={userName ? `مرحباً ${userName}` : "لوحة المشرف"}
+        title={userName ? `مرحباً ${userName}` : "لوحة الدعم الفني المراكز"}
         subtitle={
           !hasCases
             ? "لاحظت مشكلة في الميدان؟ أرسل بلاغاً — يصل لمنسق الدعم للتصنيف"

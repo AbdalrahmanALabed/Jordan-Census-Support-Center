@@ -326,7 +326,7 @@ export async function seedQaData(prisma: PrismaClient, ids: SeedUserIds) {
               action: "حالة جديدة من الميدان",
               details: "sourceReportId" in c ? "بلاغ ميداني" : "بلاغ منسق الدعم",
               actorId: c.createdById,
-              actorName: c.createdById === coordinatorId ? "منسق الدعم" : "مشرف ميداني",
+              actorName: c.createdById === coordinatorId ? "منسق الدعم" : "دعم فني — إربد",
               createdAt: hoursAgo(c.hours),
             },
           ],
@@ -479,7 +479,7 @@ export async function seedQaData(prisma: PrismaClient, ids: SeedUserIds) {
       updatedAt: hoursAgo(6),
       timeline: {
         create: [
-          { action: "حالة جديدة من الميدان", actorId: supervisorId, actorName: "مشرف ميداني", createdAt: daysAgo(3) },
+          { action: "حالة جديدة من الميدان", actorId: supervisorId, actorName: "دعم فني — إربد", createdAt: daysAgo(3) },
           {
             action: "تغيير الحالة",
             details: formatStatusChangeDetails(CaseStatus.OPEN, CaseStatus.AWAITING_APPROVAL),
@@ -731,7 +731,7 @@ export async function seedQaData(prisma: PrismaClient, ids: SeedUserIds) {
       affectedGovernorates: JSON.stringify(["الطفيلة"]),
       affectedSystem: "إدارة العمل الميداني",
       resolutionType: "NOT_A_PROBLEM",
-      resolutionNotes: "شبكة — تم توجيه المشرف لاستخدام Wi-Fi المركز",
+      resolutionNotes: "شبكة — تم توجيه دعم المراكز لاستخدام Wi-Fi المركز",
       governorate: "الطفيلة",
       createdById: supervisorId,
       createdAt: daysAgo(3),
@@ -807,7 +807,7 @@ export async function seedQaData(prisma: PrismaClient, ids: SeedUserIds) {
     data: {
       number: "C-260801-0010",
       title: "استفسار عن مواعيد الدوام — مغلقة",
-      description: "سؤال من مشرف — تم الرد عبر الهاتف.",
+      description: "سؤال من دعم المراكز — تم الرد عبر الهاتف.",
       caseType: CaseType.QUESTION,
       status: CaseStatus.CLOSED,
       priority: IssuePriority.LOW,

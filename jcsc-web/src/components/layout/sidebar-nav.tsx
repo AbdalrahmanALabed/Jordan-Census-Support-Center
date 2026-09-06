@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,6 +15,8 @@ interface SidebarNavProps {
 
 export function SidebarNav({ items, collapsed, onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab");
 
   return (
     <>
@@ -26,18 +28,20 @@ export function SidebarNav({ items, collapsed, onNavigate }: SidebarNavProps) {
         )}
         <nav className="space-y-1 px-2.5">
           {items.map((item) => {
+            const isUsersAdd = item.href === "/users?tab=add";
+            const isUsersList = item.href === "/users";
             const isActive =
+              (isUsersAdd && pathname.startsWith("/users") && tab === "add") ||
+              (isUsersList && pathname.startsWith("/users") && tab !== "add") ||
               pathname === item.href ||
               (item.href === "/cases" && /^\/cases/.test(pathname)) ||
               (item.href === "/reports/my" &&
                 (pathname === "/reports/my" || /^\/reports\/[^/]+$/.test(pathname))) ||
-              (item.href === "/users" && pathname.startsWith("/users")) ||
-              (item.href === "/roles" && pathname.startsWith("/roles")) ||
               (item.href === "/knowledge-base" && pathname.startsWith("/knowledge-base")) ||
               (item.href !== "/dashboard" &&
                 item.href !== "/cases" &&
                 item.href !== "/reports/my" &&
-                item.href !== "/users" &&
+                !item.href.startsWith("/users") &&
                 item.href !== "/roles" &&
                 pathname.startsWith(item.href));
             const Icon = item.icon;

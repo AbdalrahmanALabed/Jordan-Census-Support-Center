@@ -63,11 +63,16 @@ const DEMO_ACCOUNTS = [
   },
   {
     role: "منسق الدعم",
-    email: "coordinator@jcsc.gov.jo",
+    email: "razan.m@jcsc.gov.jo",
     accent: "border-cyan-400/35 bg-cyan-400/15 hover:bg-cyan-400/25 text-cyan-100",
   },
   {
-    role: "مشرف ميداني",
+    role: "مشرف الدعم",
+    email: "support-supervisor@jcsc.gov.jo",
+    accent: "border-teal-400/35 bg-teal-400/15 hover:bg-teal-400/25 text-teal-100",
+  },
+  {
+    role: "الدعم الفني المراكز",
     email: "supervisor@jcsc.gov.jo",
     accent: "border-sky-400/35 bg-sky-400/15 hover:bg-sky-400/25 text-sky-100",
   },
@@ -118,15 +123,16 @@ export function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function fillDemo(accountEmail: string) {
+  async function loginWithDemo(accountEmail: string) {
     setEmail(accountEmail);
     setPassword(DEMO_PASSWORD);
-    setError("");
+    await performLogin(accountEmail, DEMO_PASSWORD);
   }
 
   async function performLogin(emailValue: string, passwordValue: string) {
-    const trimmedEmail = emailValue.trim();
-    if (!trimmedEmail || !passwordValue) {
+    const trimmedEmail = emailValue.trim().toLowerCase();
+    const trimmedPassword = passwordValue.trim();
+    if (!trimmedEmail || !trimmedPassword) {
       setError("يرجى إدخال البريد الإلكتروني وكلمة المرور");
       return;
     }
@@ -137,18 +143,31 @@ export function LoginForm() {
     try {
       const result = await signIn("credentials", {
         email: trimmedEmail,
-        password: passwordValue,
+        password: trimmedPassword,
         redirect: false,
         callbackUrl,
       });
 
-      if (!result?.ok || result.error) {
-        setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
+      if (result?.error || !result?.ok) {
+        setError(
+          "البريد الإلكتروني أو كلمة المرور غير صحيحة. للحسابات الجديدة الافتراضية: jcsc2026"
+        );
         setLoading(false);
         return;
       }
 
-      window.location.assign(result.url ?? callbackUrl);
+      // Stay on the same host (IP or localhost) — avoid redirecting LAN clients to localhost
+      const redirectTarget = callbackUrl.startsWith("/")
+        ? callbackUrl
+        : (() => {
+            try {
+              const parsed = new URL(result.url ?? callbackUrl, window.location.origin);
+              return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+            } catch {
+              return "/dashboard";
+            }
+          })();
+      window.location.assign(redirectTarget);
     } catch {
       setError("تعذّر إكمال تسجيل الدخول — حاول مرة أخرى");
       setLoading(false);
@@ -157,7 +176,10 @@ export function LoginForm() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    await performLogin(email, password);
+    const formData = new FormData(e.currentTarget);
+    const formEmail = String(formData.get("email") ?? "").trim().toLowerCase();
+    const formPassword = String(formData.get("password") ?? "").trim();
+    await performLogin(formEmail || email, formPassword || password);
   }
 
   return (
@@ -196,7 +218,7 @@ export function LoginForm() {
                       autoComplete="email"
                       className="h-12 rounded-xl border-2 border-white/20 bg-white/95 ps-10 text-start text-foreground shadow-sm"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => setEmail(e.target.value.toLowerCase())}
                       required
                       dir="ltr"
                       placeholder="name@jcsc.gov.jo"
@@ -265,7 +287,7 @@ export function LoginForm() {
 
               <div className="mt-7 pt-6 border-t border-white/15">
                 <p className="text-xs font-black text-white/55 text-center mb-3">
-                  حسابات تجريبية — كلمة المرور:{" "}
+                  حسابات تجريبية — اضغط للدخول مباشرة · كلمة المرور:{" "}
                   <span className="font-mono text-indigo-300" dir="ltr">
                     {DEMO_PASSWORD}
                   </span>
@@ -275,9 +297,10 @@ export function LoginForm() {
                     <button
                       key={demoEmail}
                       type="button"
-                      onClick={() => fillDemo(demoEmail)}
+                      disabled={loading}
+                      onClick={() => void loginWithDemo(demoEmail)}
                       className={cn(
-                        "rounded-xl border-2 px-3 py-2.5 text-start transition-all active:scale-[0.98]",
+                        "rounded-xl border-2 px-3 py-2.5 text-start transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none",
                         accent
                       )}
                     >

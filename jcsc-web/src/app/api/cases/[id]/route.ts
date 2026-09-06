@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, hasApiPermission } from "@/lib/api-auth";
+import { isSupportSupervisorRole, isSupportCoordinatorRole, isSuperAdminRole } from "@/lib/permissions";
+import { isCaseVisibleToSupportSupervisor } from "@/lib/support-supervisor/server";
+import { isCaseAssignedToCoordinator } from "@/lib/coordinator-routing";
 import {
   getCaseById,
   mapCaseToClient,
   mapCaseComment,
   mapCaseTimeline,
   mapCaseDecision,
-  mapCaseAttachment,
+  resolveCaseAttachmentsForClient,
 } from "@/lib/cases/server";
 
 export async function GET(
@@ -39,11 +42,34 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  if (isSupportSupervisorRole(session!.user.role)) {
+    const visible = await isCaseVisibleToSupportSupervisor(
+      session!.user.id,
+      caseItem.createdById
+    );
+    if (!visible) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
+  if (
+    isSupportCoordinatorRole(session!.user.role) &&
+    !isSuperAdminRole(session!.user.role as import("@prisma/client").UserRole)
+  ) {
+    const allowed = await isCaseAssignedToCoordinator(session!.user.id, {
+      assignedCoordinatorId: caseItem.assignedCoordinatorId,
+      governorate: caseItem.governorate,
+    });
+    if (!allowed) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   return NextResponse.json({
     case: mapCaseToClient(caseItem),
     comments: caseItem.comments.map(mapCaseComment),
     timeline: caseItem.timeline.map(mapCaseTimeline),
     decisions: caseItem.decisions.map(mapCaseDecision),
-    attachments: caseItem.attachments.map(mapCaseAttachment),
+    attachments: await resolveCaseAttachmentsForClient(caseItem),
   });
 }

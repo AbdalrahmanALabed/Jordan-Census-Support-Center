@@ -4,7 +4,38 @@ import { requireSession, hasApiPermission } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { CORE_ROLES } from "@/lib/types";
+import {
+  canCreateRole,
+  filterAssignablePermissions,
+  isSupportSupervisorRole,
+} from "@/lib/support-supervisor";
+import { isSupportCoordinatorRole, isSuperAdminRole } from "@/lib/permissions";
+import { getManagedUsers } from "@/lib/support-supervisor/server";
+import { canViewRegionalCoordinatorUsers } from "@/lib/coordinator-routing";
+import { normalizeEmail } from "@/lib/email";
 import type { UserRole } from "@prisma/client";
+
+async function applyUserPermissions(
+  userId: string,
+  permissionKeys: string[],
+  actorRole: UserRole,
+  fullAccess: boolean
+) {
+  const keys = fullAccess ? permissionKeys : filterAssignablePermissions(permissionKeys);
+  if (keys.length === 0) return;
+
+  const allPerms = await prisma.permission.findMany();
+  const keyToId = new Map(allPerms.map((p) => [p.key, p.id]));
+
+  await prisma.userPermission.deleteMany({ where: { userId } });
+  for (const key of keys) {
+    const permissionId = keyToId.get(key);
+    if (!permissionId) continue;
+    await prisma.userPermission.create({
+      data: { userId, permissionId, granted: true },
+    });
+  }
+}
 
 export async function GET() {
   const { session, response } = await requireSession();
@@ -12,6 +43,83 @@ export async function GET() {
 
   if (!hasApiPermission(session!, "manage_users")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const actorRole = session!.user.role as UserRole;
+  const isTeamLead = isSupportSupervisorRole(actorRole);
+  const isCoordinatorLead = isSupportCoordinatorRole(actorRole);
+
+  const rolePerms = await prisma.rolePermission.findMany({
+    where: { granted: true },
+    include: { permission: true },
+  });
+  const rolePermMap: Record<string, string[]> = {};
+  for (const rp of rolePerms) {
+    if (!rolePermMap[rp.role]) rolePermMap[rp.role] = [];
+    rolePermMap[rp.role].push(rp.permission.key);
+  }
+
+  if (isTeamLead || (isCoordinatorLead && !canViewRegionalCoordinatorUsers(actorRole))) {
+    const teamUsers = await getManagedUsers(session!.user.id);
+    const enriched = await Promise.all(
+      teamUsers.map(async (u) => {
+        const perms = await prisma.userPermission.findMany({
+          where: { userId: u.id },
+          include: { permission: true },
+        });
+        return {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          phone: undefined as string | undefined,
+          jobTitle: undefined as string | undefined,
+          role: u.role,
+          team: undefined as string | undefined,
+          governorate: u.governorate,
+          isActive: u.isActive,
+          workload: 0,
+          createdAt: u.createdAt.toISOString(),
+          permissions:
+            perms.length > 0
+              ? perms.filter((p) => p.granted).map((p) => p.permission.key)
+              : rolePermMap[u.role] ?? [],
+        };
+      })
+    );
+    return NextResponse.json(enriched);
+  }
+
+  if (isCoordinatorLead && canViewRegionalCoordinatorUsers(actorRole)) {
+    const coordinators = await prisma.user.findMany({
+      where: { role: "SUPPORT_COORDINATOR" },
+      orderBy: { name: "asc" },
+    });
+    const enriched = await Promise.all(
+      coordinators.map(async (u) => {
+        const perms = await prisma.userPermission.findMany({
+          where: { userId: u.id },
+          include: { permission: true },
+        });
+        return {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          phone: u.phone ?? undefined,
+          jobTitle: u.jobTitle ?? undefined,
+          role: u.role,
+          team: u.team ?? undefined,
+          governorate: u.governorate,
+          isActive: u.isActive,
+          workload: 0,
+          createdAt: u.createdAt.toISOString(),
+          permissions:
+            perms.length > 0
+              ? perms.filter((p) => p.granted).map((p) => p.permission.key)
+              : rolePermMap[u.role] ?? [],
+        };
+      })
+    );
+    return NextResponse.json(enriched);
   }
 
   const users = await prisma.user.findMany({
@@ -25,16 +133,6 @@ export async function GET() {
       },
     },
   });
-
-  const rolePerms = await prisma.rolePermission.findMany({
-    where: { granted: true },
-    include: { permission: true },
-  });
-  const rolePermMap: Record<string, string[]> = {};
-  for (const rp of rolePerms) {
-    if (!rolePermMap[rp.role]) rolePermMap[rp.role] = [];
-    rolePermMap[rp.role].push(rp.permission.key);
-  }
 
   return NextResponse.json(
     users.map((u) => ({
@@ -67,6 +165,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { name, email, phone, jobTitle, role, team, governorate, password, permissions } = body;
+  const actorRole = session!.user.role as UserRole;
 
   if (!name?.trim() || !email?.trim() || !role) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -76,36 +175,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }
 
-  const existing = await prisma.user.findUnique({ where: { email: email.trim() } });
+  if (!canCreateRole(actorRole, role as UserRole)) {
+    return NextResponse.json({ error: "لا يمكنك إنشاء هذا الدور" }, { status: 403 });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) {
     return NextResponse.json({ error: "Email already exists" }, { status: 409 });
   }
 
-  const passwordHash = await hash(password?.trim() || "jcsc2026", 10);
+  const plainPassword = password?.trim() || "jcsc2026";
+  const passwordHash = await hash(plainPassword, 10);
+  const canAssignPerms =
+    hasApiPermission(session!, "manage_roles") ||
+    hasApiPermission(session!, "assign_user_permissions");
 
   const user = await prisma.user.create({
     data: {
       name: name.trim(),
-      email: email.trim(),
+      email: normalizedEmail,
       phone: phone?.trim() || null,
       jobTitle: jobTitle?.trim() || null,
       role,
       team: team?.trim() || null,
       governorate: governorate?.trim() || null,
       password: passwordHash,
+      directManagerId:
+        isSupportSupervisorRole(actorRole) || isSupportCoordinatorRole(actorRole)
+          ? session!.user.id
+          : null,
     },
   });
 
-  if (Array.isArray(permissions) && permissions.length > 0 && hasApiPermission(session!, "manage_roles")) {
-    const allPerms = await prisma.permission.findMany();
-    const keyToId = new Map(allPerms.map((p) => [p.key, p.id]));
-    for (const key of permissions as string[]) {
-      const permissionId = keyToId.get(key);
-      if (!permissionId) continue;
-      await prisma.userPermission.create({
-        data: { userId: user.id, permissionId, granted: true },
-      });
-    }
+  if (Array.isArray(permissions) && permissions.length > 0 && canAssignPerms) {
+    await applyUserPermissions(
+      user.id,
+      permissions as string[],
+      actorRole,
+      hasApiPermission(session!, "manage_roles")
+    );
   }
 
   await logAudit({
@@ -116,7 +225,12 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json(
-    { id: user.id, name: user.name, email: user.email },
+    {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      initialPassword: plainPassword,
+    },
     { status: 201 }
   );
 }

@@ -1,5 +1,6 @@
 export type UserRole =
   | "ADMIN"
+  | "SUPPORT_SUPERVISOR"
   | "SUPPORT_COORDINATOR"
   | "SUPPORT_MANAGER"
   | "SUPPORT_L1"
@@ -188,6 +189,7 @@ export interface ChatMessage {
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: "سوبر أدمن",
+  SUPPORT_SUPERVISOR: "مشرف الدعم",
   SUPPORT_COORDINATOR: "منسق الدعم",
   SUPPORT_MANAGER: "مدير الدعم",
   SUPPORT_L1: "دعم L1",
@@ -196,7 +198,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   DATABASE: "قاعدة بيانات",
   DEVOPS: "DevOps",
   GIS: "GIS",
-  SUPERVISOR: "مشرف",
+  SUPERVISOR: "الدعم الفني المراكز",
   CALL_CENTER: "مركز اتصال",
 };
 
@@ -211,8 +213,14 @@ export const DEPRECATED_ROLES: UserRole[] = [
   "CALL_CENTER",
 ];
 
-/** Active roles — Super Admin, Support Coordinator, Supervisor, Developer */
-export const CORE_ROLES: UserRole[] = ["ADMIN", "SUPPORT_COORDINATOR", "SUPERVISOR", "DEVELOPER"];
+/** Active roles — Super Admin, Support Supervisor, Support Coordinator, Center Support, Developer */
+export const CORE_ROLES: UserRole[] = [
+  "ADMIN",
+  "SUPPORT_SUPERVISOR",
+  "SUPPORT_COORDINATOR",
+  "SUPERVISOR",
+  "DEVELOPER",
+];
 
 export function isActiveRole(role: UserRole): boolean {
   return CORE_ROLES.includes(role);
@@ -270,7 +278,7 @@ export const GOVERNORATES = [
   "العقبة",
 ] as const;
 
-/** أنظمة التعداد — يختارها المشرف عند إرسال بلاغ أو حالة */
+/** أنظمة التعداد — يختارها دعم المراكز عند إرسال بلاغ أو حالة */
 export const CENSUS_SYSTEMS = [
   { value: "CALL_CENTER", label: "مركز اتصال", ticketPrefix: "C" },
   { value: "SELF_ENUMERATION", label: "عد ذاتي", ticketPrefix: "S" },

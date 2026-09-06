@@ -180,7 +180,7 @@ export const mockReports: FieldReport[] = [
     updatedAt: daysAgo(1),
     reviewedBy: "سارة العمري",
     classification: "TRAINING_ISSUE",
-    rejectionReason: "مشكلة تدريب — تم إرسال دليل للمشرف",
+    rejectionReason: "مشكلة تدريب — تم إرسال دليل لدعم المراكز",
     managerDecision: "NOT_A_PROBLEM",
     managerDecisionBy: "سارة العمري",
     managerDecisionAt: daysAgo(1),

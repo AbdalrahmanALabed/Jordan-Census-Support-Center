@@ -1,33 +1,21 @@
 "use client";
 
 import {
-  Paperclip,
-  Image,
-  Video,
-  Mic,
-  FileText,
-  File,
   User,
   MapPin,
   Layers,
   Calendar,
   Users,
+  Paperclip,
 } from "lucide-react";
+import { AttachmentCard } from "@/components/shared/attachment-card";
 import {
   ATTACHMENT_TYPE_LABELS,
-  type AttachmentType,
   type FieldReport,
 } from "@/lib/reports";
 import { CENSUS_SYSTEM_LABELS, type CensusSystem } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
-
-const ATTACHMENT_ICONS: Record<AttachmentType, React.ElementType> = {
-  image: Image,
-  video: Video,
-  voice: Mic,
-  log: FileText,
-  pdf: File,
-};
+import { isRealAttachmentUrl } from "@/lib/attachments";
 
 interface ReportDetailsPanelProps {
   report: FieldReport;
@@ -60,6 +48,8 @@ export function ReportDetailsPanel({ report, reviewMode = false }: ReportDetails
     ? CENSUS_SYSTEM_LABELS[report.affectedSystem as CensusSystem] ?? report.affectedSystem
     : "—";
 
+  const visibleAttachments = report.attachments.filter((a) => isRealAttachmentUrl(a.url));
+
   return (
     <div className="space-y-5">
       <FieldRow label="وصف البلاغ" value={report.observation} />
@@ -83,46 +73,27 @@ export function ReportDetailsPanel({ report, reviewMode = false }: ReportDetails
         )}
       </div>
 
-      {report.attachments.length > 0 ? (
+      {visibleAttachments.length > 0 ? (
         <div>
-          <p className="text-sm font-black mb-2 flex items-center gap-2">
+          <p className="text-sm font-black mb-3 flex items-center gap-2">
             <Paperclip className="h-4 w-4" />
-            المرفقات ({report.attachments.length})
+            المرفقات ({visibleAttachments.length})
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {report.attachments.map((a) => {
-              const Icon = ATTACHMENT_ICONS[a.type];
-              const content = (
-                <>
-                  <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold truncate">{a.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {ATTACHMENT_TYPE_LABELS[a.type]}
-                      {a.size ? ` · ${a.size}` : ""}
-                    </p>
-                  </div>
-                </>
-              );
-              return a.url && a.url !== "/placeholder" ? (
-                <a
-                  key={a.id}
-                  href={a.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 rounded-xl border-2 p-3 hover:bg-muted/50 transition-colors"
-                >
-                  {content}
-                </a>
-              ) : (
-                <div
-                  key={a.id}
-                  className="flex items-center gap-3 rounded-xl border-2 p-3 opacity-80"
-                >
-                  {content}
-                </div>
-              );
-            })}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {visibleAttachments.map((a) => (
+              <AttachmentCard
+                key={a.id}
+                compact
+                item={{
+                  id: a.id,
+                  name: a.name,
+                  url: a.url,
+                  kind: a.type,
+                  typeLabel: ATTACHMENT_TYPE_LABELS[a.type],
+                  size: a.size,
+                }}
+              />
+            ))}
           </div>
         </div>
       ) : (

@@ -36,8 +36,8 @@ export async function createUser(data: {
   governorate?: string;
   password?: string;
   permissions?: string[];
-}): Promise<User> {
-  return apiFetchOrThrow<User>("/api/users", {
+}): Promise<User & { initialPassword?: string }> {
+  return apiFetchOrThrow<User & { initialPassword?: string }>("/api/users", {
     method: "POST",
     body: JSON.stringify(data),
   });

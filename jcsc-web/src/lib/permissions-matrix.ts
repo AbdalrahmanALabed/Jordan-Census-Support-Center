@@ -31,7 +31,10 @@ export const PERMISSION_MATRIX: PermissionScreen[] = [
   {
     screen: "people",
     label: "الأفراد",
-    actions: [{ key: "manage_users", label: "إدارة" }],
+    actions: [
+      { key: "manage_users", label: "إدارة" },
+      { key: "assign_user_permissions", label: "منح صلاحيات" },
+    ],
   },
   {
     screen: "permissions",
@@ -55,7 +58,7 @@ export const PERMISSION_MATRIX: PermissionScreen[] = [
   },
   {
     screen: "field",
-    label: "البلاغ الميداني (مشرف)",
+    label: "بلاغ الدعم الفني المراكز",
     actions: [
       { key: "submit_report", label: "تقديم حالة" },
       { key: "view_own_reports", label: "عرض بلاغاتي" },

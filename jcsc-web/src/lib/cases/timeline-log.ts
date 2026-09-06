@@ -6,7 +6,8 @@ export const ROLE_MARKER = "__role__:";
 export const REASSIGN_MARKER = "__reassign__:";
 
 export const USER_ROLE_TIMELINE_LABELS: Partial<Record<UserRole, string>> = {
-  SUPERVISOR: "مشرف",
+  SUPERVISOR: "الدعم الفني المراكز",
+  SUPPORT_SUPERVISOR: "مشرف الدعم",
   SUPPORT_COORDINATOR: "منسق الدعم",
   ADMIN: "سوبر أدمن",
   DEVELOPER: "مطور",

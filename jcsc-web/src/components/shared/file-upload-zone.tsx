@@ -37,6 +37,7 @@ interface FileUploadZoneProps {
   accept?: string;
   label?: string;
   maxFiles?: number;
+  compact?: boolean;
 }
 
 export function FileUploadZone({
@@ -45,12 +46,14 @@ export function FileUploadZone({
   accept = "image/*,.pdf,.mp4,.mp3,.wav,.log,.txt",
   label = "ارفع صور أو ملفات",
   maxFiles = 6,
+  compact = false,
 }: FileUploadZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [dragActive, setDragActive] = useState(false);
 
-  async function handleFiles(list: FileList | null) {
+  async function handleFiles(list: FileList | File[] | null) {
     if (!list?.length) return;
     setError("");
     setUploading(true);
@@ -66,12 +69,32 @@ export function FileUploadZone({
       setError(e instanceof Error ? e.message : "فشل الرفع");
     } finally {
       setUploading(false);
+      setDragActive(false);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
 
   function removeAt(i: number) {
     onChange(files.filter((_, idx) => idx !== i));
+  }
+
+  function onDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!uploading && files.length < maxFiles) setDragActive(true);
+  }
+
+  function onDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (uploading || files.length >= maxFiles) return;
+    handleFiles(e.dataTransfer.files);
   }
 
   return (
@@ -85,33 +108,46 @@ export function FileUploadZone({
         onChange={(e) => handleFiles(e.target.files)}
       />
 
-      <button
-        type="button"
-        disabled={uploading || files.length >= maxFiles}
-        onClick={() => inputRef.current?.click()}
+      <div
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+        }}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onClick={() => !uploading && files.length < maxFiles && inputRef.current?.click()}
         className={cn(
-          "flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 transition-all",
-          "hover:border-primary hover:bg-primary/5",
-          uploading && "opacity-60 pointer-events-none"
+          "flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed transition-all cursor-pointer",
+          compact ? "p-5" : "p-8",
+          dragActive
+            ? "border-primary bg-primary/10 scale-[1.01]"
+            : "hover:border-primary hover:bg-primary/5",
+          (uploading || files.length >= maxFiles) && "opacity-60 pointer-events-none"
         )}
       >
         {uploading ? (
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <Loader2 className={cn("animate-spin text-primary", compact ? "h-8 w-8" : "h-10 w-10")} />
         ) : (
-          <Upload className="h-10 w-10 text-primary" />
+          <Upload className={cn("text-primary", compact ? "h-8 w-8" : "h-10 w-10")} />
         )}
-        <div className="text-center">
-          <p className="font-bold text-base">{label}</p>
-          <p className="text-sm text-muted-foreground mt-1">صور · PDF · فيديو · صوت · سجل — حتى 10 MB</p>
+        <div className="text-center pointer-events-none">
+          <p className={cn("font-bold", compact ? "text-sm" : "text-base")}>
+            {dragActive ? "أفلت الملف هنا" : label}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            اسحب وأفلت · أو انقر للاختيار — صور · PDF · فيديو · حتى 10 MB
+          </p>
         </div>
-      </button>
+      </div>
 
       {error && <p className="text-sm font-medium text-destructive">{error}</p>}
 
       {files.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2">
           {files.map((f, i) => (
-            <div key={f.url} className="flex items-center gap-3 rounded-xl border-2 bg-muted/30 p-3">
+            <div key={`${f.url}-${i}`} className="flex items-center gap-3 rounded-xl border-2 bg-muted/30 p-3">
               {f.preview ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={f.preview} alt={f.name} className="h-14 w-14 rounded-lg object-cover shrink-0" />

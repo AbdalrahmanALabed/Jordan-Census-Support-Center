@@ -1,30 +1,27 @@
 import { prisma } from "@/lib/db";
-import { ASSIGNEE_NAMES, ASSIGNEE_SEED_USERS, type AssigneeName } from "@/lib/assignees";
+import { sortAssigneesByName } from "@/lib/assignees";
+import { isTechnicalAssigneeRole } from "@/lib/developer-specialties";
 
 export type AssigneeOption = {
-  id: string | null;
-  name: AssigneeName;
+  id: string;
+  name: string;
   email: string;
+  team?: string | null;
 };
 
-/** كل الأسماء المعتمدة — مع ربط id من قاعدة البيانات إن وُجد */
+/** كل المستخدمين القابلين للإسناد — من قاعدة البيانات (بدون قائمة أسماء ثابتة) */
 export async function listAssigneeOptions(): Promise<AssigneeOption[]> {
-  const developers = await prisma.user.findMany({
-    where: { role: "DEVELOPER", isActive: true },
-    select: { id: true, name: true, email: true },
+  const assignees = await prisma.user.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true, email: true, team: true, role: true },
+    orderBy: { name: "asc" },
   });
 
-  return ASSIGNEE_NAMES.map((name) => {
-    const seed = ASSIGNEE_SEED_USERS.find((s) => s.name === name)!;
-    const match =
-      developers.find((d) => d.name === name) ??
-      developers.find((d) => d.email === seed.email);
-    return {
-      id: match?.id ?? null,
-      name,
-      email: seed.email,
-    };
-  });
+  return sortAssigneesByName(
+    assignees
+      .filter((u) => isTechnicalAssigneeRole(u.role))
+      .map(({ id, name, email, team }) => ({ id, name, email, team }))
+  );
 }
 
 /** يحوّل id أو اسم أو بريد إلى user id */
@@ -32,23 +29,23 @@ export async function resolveAssigneeId(assigneeRef: string): Promise<string | n
   const ref = assigneeRef?.trim();
   if (!ref) return null;
 
-  const byId = await prisma.user.findUnique({ where: { id: ref }, select: { id: true } });
-  if (byId) return byId.id;
+  const byId = await prisma.user.findUnique({
+    where: { id: ref },
+    select: { id: true, role: true, isActive: true },
+  });
+  if (byId?.isActive && isTechnicalAssigneeRole(byId.role)) return byId.id;
+
+  const byEmail = await prisma.user.findFirst({
+    where: { email: ref, isActive: true },
+    select: { id: true, role: true },
+  });
+  if (byEmail && isTechnicalAssigneeRole(byEmail.role)) return byEmail.id;
 
   const byName = await prisma.user.findFirst({
-    where: { name: ref, role: "DEVELOPER" },
-    select: { id: true },
+    where: { name: ref, isActive: true },
+    select: { id: true, role: true },
   });
-  if (byName) return byName.id;
-
-  const seed = ASSIGNEE_SEED_USERS.find((s) => s.name === ref || s.email === ref);
-  if (seed) {
-    const byEmail = await prisma.user.findUnique({
-      where: { email: seed.email },
-      select: { id: true },
-    });
-    if (byEmail) return byEmail.id;
-  }
+  if (byName && isTechnicalAssigneeRole(byName.role)) return byName.id;
 
   return null;
 }

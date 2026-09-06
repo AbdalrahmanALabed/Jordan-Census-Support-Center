@@ -156,7 +156,7 @@ export function IncomingReportsContent() {
                 <tr className="border-b bg-muted/50">
                   <th className="px-4 py-3 text-start">الرقم</th>
                   <th className="px-4 py-3 text-start">الملاحظة</th>
-                  <th className="px-4 py-3 text-start">المشرف</th>
+                  <th className="px-4 py-3 text-start">دعم المراكز</th>
                   <th className="px-4 py-3 text-start">النظام</th>
                   <th className="px-4 py-3 text-start">الحالة</th>
                   <th className="px-4 py-3 text-start">مرفقات</th>

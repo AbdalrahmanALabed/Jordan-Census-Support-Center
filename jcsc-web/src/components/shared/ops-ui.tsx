@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ChevronLeft, CircleDot, Wrench, CheckCircle2, Archive, MapPin, Users, User } from "lucide-react";
+import { Check, ChevronLeft, CircleDot, Wrench, CheckCircle2, Archive, MapPin, Users, User, Eye, Paperclip, Copy } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { CaseStatus, SimpleCaseStatus } from "@/lib/cases/types";
 import {
@@ -731,87 +732,92 @@ export function CaseRow({
           {/* Status column */}
           <div
             className={cn(
-              "hidden sm:flex w-[4.5rem] shrink-0 flex-col items-center justify-center gap-1.5 border-e py-4",
+              "hidden sm:flex w-[5rem] shrink-0 flex-col items-center justify-center gap-1 border-e py-4 px-1",
               s.bg,
               s.border
             )}
           >
-            <StatusIcon className={cn("h-5 w-5", s.text)} strokeWidth={2.5} />
-            <span className={cn("text-[9px] font-black uppercase tracking-wide text-center px-1 leading-tight", s.text)}>
-              {statusLabel.split(" ")[0]}
+            <StatusIcon className={cn("h-5 w-5 shrink-0", s.text)} strokeWidth={2.5} />
+            <span className={cn("text-[10px] font-bold text-center leading-tight px-0.5", s.text)}>
+              {statusLabel}
             </span>
           </div>
 
           {/* Mobile status strip */}
           <div className={cn("sm:hidden w-1.5 shrink-0", s.dot, needsReview && "w-2 animate-pulse-soft")} />
 
-          <div className="flex flex-1 items-center gap-3 p-4 min-w-0">
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="font-mono text-[11px] font-bold text-muted-foreground">{number}</span>
-                {systemLabel && (
-                  <span className="rounded-md bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 text-[9px] font-black uppercase">
-                    {systemLabel}
-                  </span>
-                )}
-                {needsReview && (
-                  <span className="rounded-full bg-sky-500 px-2 py-0.5 text-[9px] font-black text-white animate-pulse-soft">
-                    مراجعة
-                  </span>
-                )}
-                {readOnly && (
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[9px] font-black text-muted-foreground">
-                    معاينة
-                  </span>
-                )}
-                <span className="rounded-md bg-muted/80 px-2 py-0.5 text-[10px] font-bold">{typeLabel}</span>
-                <span className="sm:hidden ms-auto">
-                  <StatusBadge status={status} label={statusLabel} className="text-[10px] px-2 py-0.5" />
+          <div className="flex flex-1 flex-col gap-2.5 p-4 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[11px] font-bold text-muted-foreground shrink-0">
+                {number}
+              </span>
+              {systemLabel && (
+                <span className="rounded-md bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] font-bold max-w-[8rem] truncate">
+                  {systemLabel}
                 </span>
-              </div>
-
-              <p className="text-base md:text-[1.05rem] font-black line-clamp-1 group-hover/row:text-primary transition-colors leading-snug">
-                {title}
-              </p>
-
-              {description && (
-                <p className="text-sm text-muted-foreground line-clamp-1 leading-relaxed hidden md:block">
-                  {description}
-                </p>
               )}
+              {needsReview && (
+                <span className="rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-black text-white shrink-0">
+                  مراجعة
+                </span>
+              )}
+              {readOnly && (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-black text-muted-foreground shrink-0">
+                  معاينة
+                </span>
+              )}
+              <span className="rounded-md bg-muted/80 px-2 py-0.5 text-[10px] font-bold shrink-0">
+                {typeLabel}
+              </span>
+              <span className="sm:hidden ms-auto shrink-0">
+                <StatusBadge status={status} label={statusLabel} className="text-[10px] px-2 py-0.5" />
+              </span>
+            </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+            <p className="text-base md:text-[1.05rem] font-black line-clamp-2 break-words group-hover/row:text-primary transition-colors leading-snug">
+              {title}
+            </p>
+
+            {description && (
+              <p className="text-sm text-muted-foreground line-clamp-2 break-words leading-relaxed">
+                {description}
+              </p>
+            )}
+
+            <div className="flex flex-col gap-2 pt-2 border-t border-border/40 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
                 {governorate && (
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-                    <MapPin className="h-3 w-3" />
-                    {governorate}
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-0.5 text-[10px] font-bold text-muted-foreground shrink-0">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    <span className="truncate max-w-[7rem]">{governorate}</span>
                   </span>
                 )}
                 {affectedUsers !== undefined && affectedUsers > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-                    <Users className="h-3 w-3" />
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-0.5 text-[10px] font-bold text-muted-foreground shrink-0">
+                    <Users className="h-3 w-3 shrink-0" />
                     {affectedUsers}
                   </span>
                 )}
                 {assigneeLabel && (
-                  <span className="inline-flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/5 text-primary px-2 py-0.5 text-[10px] font-black">
-                    <User className="h-3 w-3" />
-                    {assigneeLabel}
+                  <span className="inline-flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/5 text-primary px-2 py-0.5 text-[10px] font-black min-w-0 max-w-full">
+                    <User className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{assigneeLabel}</span>
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground ms-auto sm:ms-0">
-                  <span className={cn("h-1.5 w-1.5 rounded-full", PRIORITY_DOT[priority ?? ""] ?? "bg-slate-400")} />
+              </div>
+              <div className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold text-muted-foreground shrink-0">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", PRIORITY_DOT[priority ?? ""] ?? "bg-slate-400")} />
                   {priorityLabel}
-                  <span className="text-muted-foreground/50">·</span>
-                  {updatedAt}
                 </span>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="whitespace-nowrap">{updatedAt}</span>
               </div>
             </div>
+          </div>
 
-            <div className="hidden sm:flex flex-col items-end gap-2 shrink-0 ps-2">
-              <StatusBadge status={status} label={statusLabel} className="text-xs px-2.5 py-0.5" />
-              <ChevronLeft className="h-5 w-5 text-muted-foreground/40 group-hover/row:text-primary group-hover/row:translate-x-[-2px] transition-all" />
-            </div>
+          <div className="hidden sm:flex flex-col items-end justify-center gap-2 shrink-0 pe-4 ps-1">
+            <ChevronLeft className="h-5 w-5 text-muted-foreground/40 group-hover/row:text-primary group-hover/row:translate-x-[-2px] transition-all" />
           </div>
         </div>
       </Link>
@@ -822,6 +828,150 @@ export function CaseRow({
         </div>
       )}
     </div>
+  );
+}
+
+/* ─── Report row (تصنيف البلاغات) ─── */
+export function ReportRow({
+  number,
+  observation,
+  supervisorName,
+  systemLabel,
+  governorate,
+  statusLabel,
+  statusVariant = "info",
+  decisionLabel,
+  decisionVariant,
+  attachmentsCount = 0,
+  similarCount = 0,
+  updatedAt,
+  href,
+  canReview,
+  onReview,
+}: {
+  number: string;
+  observation: string;
+  supervisorName?: string;
+  systemLabel?: string;
+  governorate?: string;
+  statusLabel: string;
+  statusVariant?: "info" | "warning" | "success" | "critical" | "secondary";
+  decisionLabel?: string;
+  decisionVariant?: "success" | "secondary";
+  attachmentsCount?: number;
+  similarCount?: number;
+  updatedAt: string;
+  href: string;
+  canReview?: boolean;
+  onReview?: () => void;
+}) {
+  const statusColors: Record<string, string> = {
+    critical: "border-red-200/70 bg-red-50/80 text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300",
+    warning: "border-amber-200/70 bg-amber-50/80 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300",
+    info: "border-sky-200/70 bg-sky-50/80 text-sky-800 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-300",
+    success: "border-emerald-200/70 bg-emerald-50/80 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300",
+    secondary: "border-slate-200/70 bg-slate-50/80 text-slate-600 dark:border-slate-800/40 dark:bg-slate-900/30 dark:text-slate-300",
+  };
+
+  return (
+    <article
+      className={cn(
+        "group/report rounded-2xl border-2 bg-card transition-all duration-200",
+        canReview
+          ? "border-sky-200/60 hover:border-sky-400/50 hover:shadow-md"
+          : "border-border/60 hover:border-primary/20 hover:shadow-sm"
+      )}
+    >
+      <Link href={href} className="block p-4 md:p-5">
+        <div className="flex flex-col gap-3 min-w-0">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+              <span className="font-mono text-xs font-bold text-primary shrink-0">{number}</span>
+              {systemLabel && (
+                <span className="rounded-lg border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-bold text-primary max-w-[10rem] truncate">
+                  {systemLabel}
+                </span>
+              )}
+              {similarCount > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-[10px] font-bold shrink-0">
+                  <Copy className="h-3 w-3" />
+                  مشابه ({similarCount + 1})
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0 max-w-full justify-end">
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold whitespace-nowrap",
+                  statusColors[statusVariant] ?? statusColors.info
+                )}
+              >
+                {statusLabel}
+              </span>
+              {decisionLabel && (
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold whitespace-nowrap",
+                    decisionVariant === "success"
+                      ? statusColors.success
+                      : statusColors.secondary
+                  )}
+                >
+                  {decisionLabel}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <p className="text-sm md:text-base font-bold leading-relaxed line-clamp-3 break-words text-foreground">
+            {observation}
+          </p>
+
+          <div className="flex flex-col gap-2 pt-2 border-t border-border/50 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-bold text-muted-foreground min-w-0">
+              {supervisorName && (
+                <span className="inline-flex items-center gap-1 min-w-0">
+                  <User className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate max-w-[9rem]">{supervisorName}</span>
+                </span>
+              )}
+              {governorate && (
+                <span className="inline-flex items-center gap-1 shrink-0">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" />
+                  {governorate}
+                </span>
+              )}
+              {attachmentsCount > 0 && (
+                <span className="inline-flex items-center gap-1 shrink-0">
+                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                  {attachmentsCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] font-bold text-muted-foreground whitespace-nowrap shrink-0">
+              {updatedAt}
+            </span>
+          </div>
+        </div>
+      </Link>
+
+      {canReview && onReview && (
+        <div className="border-t border-border/60 bg-muted/20 px-4 py-3 rounded-b-2xl">
+          <Button
+            size="sm"
+            className="w-full sm:w-auto font-bold gap-2"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onReview();
+            }}
+          >
+            <Eye className="h-4 w-4" />
+            مراجعة وتصنيف
+          </Button>
+        </div>
+      )}
+    </article>
   );
 }
 

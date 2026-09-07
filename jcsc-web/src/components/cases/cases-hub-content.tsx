@@ -503,7 +503,7 @@ export function CasesHubContent() {
       <div className="relative">
         <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="بحث برقم أو عنوان البلاغ..."
+          placeholder="بحث برقم أو عنوان..."
           className="h-10 rounded-xl bg-muted/40 ps-9 border-0 ring-1 ring-border/60"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -511,16 +511,16 @@ export function CasesHubContent() {
       </div>
 
       <FilterSection label="حالة التصنيف" icon={ClipboardCheck}>
-        <FilterPills
-          variant="segmented"
+        <StatusFilterNav
           options={COORDINATOR_STATUS_FILTERS.map(({ value, label, icon }) => ({
             value,
-            label: `${label} (${coordinatorStatusCounts[value as keyof typeof coordinatorStatusCounts]})`,
+            label,
             icon,
+            count: coordinatorStatusCounts[value as keyof typeof coordinatorStatusCounts],
           }))}
           value={coordinatorStatusValue}
-          onChange={setCoordinatorStatusFilter}
-          allLabel="الكل"
+          onChange={(v) => setCoordinatorStatusFilter(v === "ALL" ? "ALL" : v)}
+          totalCount={coordinatorStatusCounts.ALL}
         />
       </FilterSection>
 
@@ -942,33 +942,31 @@ export function CasesHubContent() {
 
         {/* Results column */}
         <main className="min-w-0 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/30 border border-border/50 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-black tabular-nums">{resultCount} نتيجة</span>
+          <div className="flex flex-col gap-2 rounded-xl bg-muted/30 border border-border/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+              <span className="text-sm font-black tabular-nums shrink-0">{resultCount} نتيجة</span>
               {isCoordinator && coordinatorStatusValue !== "ALL" && (
-                <span className="text-xs font-bold text-muted-foreground">
+                <span className="text-xs font-bold text-muted-foreground truncate">
                   · {COORDINATOR_STATUS_FILTERS.find((f) => f.value === coordinatorStatusValue)?.label ?? coordinatorStatusValue}
                 </span>
               )}
               {!isCoordinator && rawStatus !== "ALL" && (
-                <span className="text-xs font-bold text-muted-foreground">
-                  ·{" "}
-                  {CASE_STATUS_LABELS[rawStatus as keyof typeof CASE_STATUS_LABELS] ??
-                    rawStatus}
+                <span className="text-xs font-bold text-muted-foreground truncate">
+                  · {CASE_STATUS_LABELS[rawStatus as keyof typeof CASE_STATUS_LABELS] ?? rawStatus}
                 </span>
               )}
               {!isCoordinator && simpleStatus !== "ALL" && rawStatus === "ALL" && (
-                <span className="text-xs font-bold text-muted-foreground">
+                <span className="text-xs font-bold text-muted-foreground truncate">
                   · {SIMPLE_CASE_STATUS_LABELS[simpleStatus]}
                 </span>
               )}
-              {isCoordinator && (
-                <span className="text-xs font-bold text-muted-foreground/80">
-                  · للعرض فقط خارج «بانتظار التصنيف»
-                </span>
-              )}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            {isCoordinator && coordinatorStatusValue === "ALL" && !search.trim() && systemPrefix === "ALL" && (
+              <p className="text-[11px] font-medium text-muted-foreground leading-relaxed sm:max-w-xs">
+                الحالات خارج «بانتظار التصنيف» للمعاينة فقط
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               {hasActiveFilters && (
                 <Button
                   size="sm"

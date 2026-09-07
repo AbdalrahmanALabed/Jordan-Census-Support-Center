@@ -212,6 +212,19 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermission[] = [
     ],
   },
   {
+    role: "FIELD_OPERATIONS_COORDINATOR",
+    permissions: [
+      "view_dashboard",
+      "submit_report",
+      "view_own_reports",
+      "review_reports",
+      "reject_reports",
+      "view_issues",
+      "close_issues",
+      "manage_users",
+    ],
+  },
+  {
     role: "DEVELOPER",
     permissions: ["view_dashboard", "view_tickets", "manage_tickets", "view_queues"],
   },

@@ -15,6 +15,7 @@ import { sendNotification } from "@/lib/notifications/server";
 import { prisma } from "@/lib/db";
 import { censusSystemToLabel } from "@/lib/types";
 import { resolveAssigneeId } from "@/lib/assignees/server";
+import { canViewItemByFieldOpsRules } from "@/lib/field-ops-visibility";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -41,6 +42,16 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const canViewAll = hasApiPermission(session!, "review_reports");
   if (!canViewAll && report.supervisorId !== session!.user.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (
+    !canViewItemByFieldOpsRules(
+      { affectedSystem: report.affectedSystem },
+      session!.user.role,
+      { isOwnSubmission: report.supervisorId === session!.user.id }
+    )
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -71,6 +82,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const existing = await getReportWithRelations(id);
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (
+    !canViewItemByFieldOpsRules(
+      { affectedSystem: existing.affectedSystem },
+      session!.user.role
+    )
+  ) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const linkedCase = await findCaseByReportId(id);

@@ -40,7 +40,7 @@ export function canCreateRole(actorRole: UserRole | string, targetRole: UserRole
   if (isSupportSupervisorRole(actorRole)) {
     return SUPPORT_SUPERVISOR_CREATABLE_ROLES.includes(targetRole);
   }
-  if (actorRole === "SUPPORT_COORDINATOR") {
+  if (actorRole === "SUPPORT_COORDINATOR" || actorRole === "FIELD_OPERATIONS_COORDINATOR") {
     return SUPPORT_COORDINATOR_CREATABLE_ROLES.includes(targetRole);
   }
   return false;

@@ -11,7 +11,8 @@ import {
 import { prisma } from "@/lib/db";
 import { notifyCoordinator, notifySuperAdmins } from "@/lib/notifications/server";
 import { createCaseFromReport } from "@/lib/cases/server";
-import { resolveCoordinatorForGovernorate } from "@/lib/coordinator-routing";
+import { resolveCoordinatorForReport, isFieldOperationsAffectedSystem } from "@/lib/coordinator-routing";
+import { filterItemsByFieldOpsVisibility } from "@/lib/field-ops-visibility";
 
 export async function GET(req: NextRequest) {
   const { session, response } = await requireSession();
@@ -56,6 +57,15 @@ export async function GET(req: NextRequest) {
         r.supervisor.name.includes(q)
     );
   }
+
+  const isOwnList =
+    supervisorOnly ||
+    !hasApiPermission(session!, "review_reports");
+
+  reports = filterItemsByFieldOpsVisibility(reports, session!.user.role, {
+    viewerId: session!.user.id,
+    includeOwnSubmissions: isOwnList,
+  });
 
   return NextResponse.json(reports.map(mapReportToClient));
 }
@@ -147,10 +157,12 @@ export async function POST(req: NextRequest) {
       affectedSystem: system,
     });
 
-    const coordinator = await resolveCoordinatorForGovernorate(governorate);
+    const coordinator = await resolveCoordinatorForReport(governorate, system);
     if (coordinator) {
       await notifyCoordinator(coordinator.id, {
-        title: "بلاغ جديد — محافظتك",
+        title: isFieldOperationsAffectedSystem(system)
+          ? "بلاغ جديد — إدارة العمل الميداني"
+          : "بلاغ جديد — محافظتك",
         message: `${number} — ${governorate} — ${enumeratorsAffected} مستخدم متأثر`,
         type: "report_new",
         entityType: "Report",

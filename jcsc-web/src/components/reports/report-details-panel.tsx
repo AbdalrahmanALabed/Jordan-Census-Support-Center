@@ -38,7 +38,7 @@ function FieldRow({
         {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
         {label}
       </p>
-      <p className="text-sm font-black leading-relaxed">{value}</p>
+      <p className="text-sm font-black leading-relaxed break-words">{value}</p>
     </div>
   );
 }

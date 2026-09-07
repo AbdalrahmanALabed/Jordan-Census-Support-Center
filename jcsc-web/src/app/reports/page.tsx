@@ -16,7 +16,7 @@ export default async function ReportsPage() {
   }
 
   return (
-    <MainLayout title="البلاغات الواردة">
+    <MainLayout title="تصنيف البلاغات">
       <PermissionGate permission="review_reports">
         <IncomingReportsContent />
       </PermissionGate>

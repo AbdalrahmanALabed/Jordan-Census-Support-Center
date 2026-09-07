@@ -40,6 +40,16 @@ const FALLBACK_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     "close_issues",
     "manage_users",
   ],
+  FIELD_OPERATIONS_COORDINATOR: [
+    "view_dashboard",
+    "submit_report",
+    "view_own_reports",
+    "review_reports",
+    "reject_reports",
+    "view_issues",
+    "close_issues",
+    "manage_users",
+  ],
   ADMIN: Object.keys(PERMISSION_LABELS),
   DEVELOPER: ["view_dashboard", "view_issues", "manage_issues", "view_queues"],
   /** Legacy roles — no active permissions */
@@ -90,7 +100,12 @@ export function canViewKnowledgeBase(
 ): boolean {
   if (!user?.role) return false;
   if (user.role === "ADMIN") return true;
-  if (isSupervisorRole(user.role) || isSupportCoordinatorRole(user.role)) return true;
+  if (
+    isSupervisorRole(user.role) ||
+    isSupportCoordinatorRole(user.role) ||
+    isFieldOperationsCoordinatorRole(user.role)
+  )
+    return true;
   return userHasPermission(user, "view_issues") || userHasPermission(user, "view_dashboard");
 }
 
@@ -104,7 +119,12 @@ export function isSupportSupervisorRole(role?: UserRole | null | string): boolea
 
 /** Support coordinator — first-line triage between center support and super admin */
 export function isSupportCoordinatorRole(role?: UserRole | null | string): boolean {
-  return role === "SUPPORT_COORDINATOR";
+  return role === "SUPPORT_COORDINATOR" || role === "FIELD_OPERATIONS_COORDINATOR";
+}
+
+/** منسق إدارة العمل الميداني — بلاغات نظام FIELD_OPERATIONS */
+export function isFieldOperationsCoordinatorRole(role?: UserRole | null | string): boolean {
+  return role === "FIELD_OPERATIONS_COORDINATOR";
 }
 
 /** Super admin — full case review, classify, assign, users & roles */

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, hasApiPermission } from "@/lib/api-auth";
-import { isSupportSupervisorRole, isSupportCoordinatorRole, isSuperAdminRole } from "@/lib/permissions";
+import { isSupportSupervisorRole, isSuperAdminRole } from "@/lib/permissions";
 import { isCaseVisibleToSupportSupervisor } from "@/lib/support-supervisor/server";
 import { isCaseAssignedToCoordinator } from "@/lib/coordinator-routing";
+import {
+  canViewItemByFieldOpsRules,
+  supportSupervisorCanViewCase,
+} from "@/lib/field-ops-visibility";
+import { isFieldOperationsCoordinatorRole } from "@/lib/permissions";
 import {
   getCaseById,
   mapCaseToClient,
@@ -42,23 +47,41 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  if (
+    !canViewItemByFieldOpsRules(
+      { affectedSystem: caseItem.affectedSystem },
+      session!.user.role,
+      { isOwnSubmission: caseItem.createdById === session!.user.id }
+    )
+  ) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   if (isSupportSupervisorRole(session!.user.role)) {
     const visible = await isCaseVisibleToSupportSupervisor(
       session!.user.id,
       caseItem.createdById
     );
-    if (!visible) {
+    if (!visible || !supportSupervisorCanViewCase(caseItem, session!.user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
 
   if (
-    isSupportCoordinatorRole(session!.user.role) &&
+    isFieldOperationsCoordinatorRole(session!.user.role) &&
+    caseItem.assignedCoordinatorId !== session!.user.id
+  ) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (
+    session!.user.role === "SUPPORT_COORDINATOR" &&
     !isSuperAdminRole(session!.user.role as import("@prisma/client").UserRole)
   ) {
     const allowed = await isCaseAssignedToCoordinator(session!.user.id, {
       assignedCoordinatorId: caseItem.assignedCoordinatorId,
       governorate: caseItem.governorate,
+      affectedSystem: caseItem.affectedSystem,
     });
     if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

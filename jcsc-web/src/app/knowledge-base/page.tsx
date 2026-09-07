@@ -5,7 +5,7 @@ import { PermissionGate } from "@/components/auth/permission-gate";
 export default function KnowledgeBasePage() {
   return (
     <MainLayout title="الحلول">
-      <PermissionGate knowledgeBase allowRoles={["SUPERVISOR", "SUPPORT_COORDINATOR", "ADMIN"]}>
+      <PermissionGate knowledgeBase allowRoles={["SUPERVISOR", "SUPPORT_COORDINATOR", "FIELD_OPERATIONS_COORDINATOR", "ADMIN"]}>
         <KnowledgeBaseContent />
       </PermissionGate>
     </MainLayout>

@@ -4,7 +4,8 @@
  */
 import { chromium } from "playwright";
 
-const BASE = process.env.BASE_URL ?? "http://localhost:3000";
+const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+const BP = "/Support_Center";
 const PASSWORD = "jcsc2026";
 
 const ROLES = [
@@ -14,9 +15,14 @@ const ROLES = [
     pages: ["/dashboard", "/cases", "/reports", "/users", "/notifications", "/settings", "/knowledge-base"],
   },
   {
+    name: "SUPPORT_SUPERVISOR",
+    email: "support-supervisor@jcsc.gov.jo",
+    pages: ["/dashboard", "/cases", "/reports", "/users", "/notifications", "/settings"],
+  },
+  {
     name: "COORDINATOR",
-    email: "coordinator@jcsc.gov.jo",
-    pages: ["/dashboard", "/cases", "/reports/my", "/notifications", "/settings", "/knowledge-base"],
+    email: "manal.k@jcsc.gov.jo",
+    pages: ["/dashboard", "/cases", "/reports", "/notifications", "/settings", "/knowledge-base"],
   },
   {
     name: "SUPERVISOR",
@@ -31,7 +37,7 @@ const ROLES = [
 ];
 
 async function login(page, email) {
-  await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${BASE}${BP}/login`, { waitUntil: "domcontentloaded" });
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', PASSWORD);
   await Promise.all([
@@ -42,7 +48,7 @@ async function login(page, email) {
 
 async function checkPage(page, path) {
   const started = Date.now();
-  const response = await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded", timeout: 30000 });
+  const response = await page.goto(`${BASE}${BP}${path}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(500);
   const body = await page.locator("body").innerText();
   const ms = Date.now() - started;
@@ -60,7 +66,7 @@ async function checkApi(page, path) {
   const result = await page.evaluate(async (p) => {
     const res = await fetch(p);
     return { status: res.status, ok: res.ok };
-  }, path);
+  }, `${BP}${path}`);
   return { path, ms: Date.now() - started, ...result };
 }
 
@@ -99,7 +105,7 @@ for (const role of ROLES) {
     }
   }
 
-  await page.goto(`${BASE}/api/auth/signout`, { waitUntil: "domcontentloaded" }).catch(() => {});
+  await page.goto(`${BASE}${BP}/api/auth/signout`, { waitUntil: "domcontentloaded" }).catch(() => {});
   await context.clearCookies();
 }
 

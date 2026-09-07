@@ -76,6 +76,7 @@ export async function POST(
     const allowed = await isCaseAssignedToCoordinator(actorId, {
       assignedCoordinatorId: existing.assignedCoordinatorId,
       governorate: existing.governorate,
+      affectedSystem: existing.affectedSystem,
     });
     if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

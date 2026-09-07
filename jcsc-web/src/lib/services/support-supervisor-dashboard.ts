@@ -1,3 +1,5 @@
+import { withBasePath } from "@/lib/base-path";
+
 export interface SupportSupervisorDashboardData {
   stats: {
     teamSize: number;
@@ -33,7 +35,7 @@ export interface SupportSupervisorDashboardData {
 }
 
 export async function getSupportSupervisorDashboard(): Promise<SupportSupervisorDashboardData> {
-  const res = await fetch("/api/dashboard/support-supervisor");
+  const res = await fetch(withBasePath("/api/dashboard/support-supervisor"));
   if (!res.ok) throw new Error("فشل تحميل لوحة مشرف الدعم");
   return res.json();
 }

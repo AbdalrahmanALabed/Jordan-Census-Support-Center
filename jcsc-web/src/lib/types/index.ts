@@ -2,6 +2,7 @@ export type UserRole =
   | "ADMIN"
   | "SUPPORT_SUPERVISOR"
   | "SUPPORT_COORDINATOR"
+  | "FIELD_OPERATIONS_COORDINATOR"
   | "SUPPORT_MANAGER"
   | "SUPPORT_L1"
   | "SUPPORT_L2"
@@ -191,6 +192,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: "سوبر أدمن",
   SUPPORT_SUPERVISOR: "مشرف الدعم",
   SUPPORT_COORDINATOR: "منسق الدعم",
+  FIELD_OPERATIONS_COORDINATOR: "منسق إدارة العمل الميداني",
   SUPPORT_MANAGER: "مدير الدعم",
   SUPPORT_L1: "دعم L1",
   SUPPORT_L2: "دعم L2",
@@ -218,6 +220,7 @@ export const CORE_ROLES: UserRole[] = [
   "ADMIN",
   "SUPPORT_SUPERVISOR",
   "SUPPORT_COORDINATOR",
+  "FIELD_OPERATIONS_COORDINATOR",
   "SUPERVISOR",
   "DEVELOPER",
 ];

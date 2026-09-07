@@ -4,6 +4,7 @@ import { isSupportSupervisorRole } from "@/lib/permissions";
 import { getManagedUsers } from "@/lib/support-supervisor/server";
 import { listCases } from "@/lib/cases/server";
 import { mapCaseToClient } from "@/lib/cases/server";
+import { filterItemsByFieldOpsVisibility } from "@/lib/field-ops-visibility";
 import { toSimpleCaseStatus } from "@/lib/cases/types";
 import { ROLE_LABELS } from "@/lib/types";
 import type { UserRole } from "@/lib/types";
@@ -32,7 +33,8 @@ export async function GET() {
       ? await listCases({ createdByIds: teamIds, limit: 200 })
       : [];
 
-  const cases = rawCases.map(mapCaseToClient);
+  const visibleRawCases = filterItemsByFieldOpsVisibility(rawCases, session!.user.role);
+  const cases = visibleRawCases.map(mapCaseToClient);
   const today = new Date().toDateString();
 
   const stats = {

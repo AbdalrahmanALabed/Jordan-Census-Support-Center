@@ -11,9 +11,10 @@ import type {
 import { prisma } from "@/lib/db";
 import type { Case, CaseComment, CaseTimelineEvent, CaseDecision, CaseAttachment, SimpleCaseStatus } from "@/lib/cases/types";
 import { caseStatusesForSimple, caseCanClassifyAndAssign } from "@/lib/cases/types";
+import { fieldOpsPrismaFilter } from "@/lib/field-ops-visibility";
 import { logCaseStatusChange, logCaseAssignment, logCaseReassignment, logCaseTimelineEvent, appendTimelineMeta, timelineRoleLabel } from "@/lib/cases/timeline-log";
 import { generatePrefixedTicketNumber } from "@/lib/ticket-numbers";
-import { resolveCoordinatorForGovernorate } from "@/lib/coordinator-routing";
+import { resolveCoordinatorForReport } from "@/lib/coordinator-routing";
 
 const caseInclude = {
   createdBy: true,
@@ -263,11 +264,15 @@ function startOfToday(): Date {
   return d;
 }
 
-export async function getCaseSummaryStats() {
+export async function getCaseSummaryStats(role?: string | null) {
   const today = startOfToday();
   const inProgressStatuses = caseStatusesForSimple("IN_PROGRESS");
   const solvedStatuses = caseStatusesForSimple("SOLVED");
   const closedStatuses = caseStatusesForSimple("CLOSED");
+  const visibilityWhere = fieldOpsPrismaFilter(role) ?? {};
+
+  const countWithVisibility = (where: Prisma.CaseWhereInput) =>
+    prisma.case.count({ where: { ...where, ...visibilityWhere } });
 
   const [
     pendingCoordinator,
@@ -280,20 +285,23 @@ export async function getCaseSummaryStats() {
     waitingDeployment,
     bugsOpen,
   ] = await Promise.all([
-    prisma.case.count({ where: { status: "OPEN" } }),
-    prisma.case.count({ where: { status: "AWAITING_APPROVAL" } }),
-    prisma.case.count({ where: { status: { in: inProgressStatuses as CaseStatus[] } } }),
-    prisma.case.count({ where: { status: { in: solvedStatuses as CaseStatus[] } } }),
-    prisma.case.count({
-      where: { status: { in: closedStatuses as CaseStatus[] }, updatedAt: { gte: today } },
+    countWithVisibility({ status: "OPEN" }),
+    countWithVisibility({ status: "AWAITING_APPROVAL" }),
+    countWithVisibility({ status: { in: inProgressStatuses as CaseStatus[] } }),
+    countWithVisibility({ status: { in: solvedStatuses as CaseStatus[] } }),
+    countWithVisibility({
+      status: { in: closedStatuses as CaseStatus[] },
+      updatedAt: { gte: today },
     }),
-    prisma.case.count({
-      where: { status: "AWAITING_APPROVAL", updatedAt: { gte: today } },
+    countWithVisibility({
+      status: "AWAITING_APPROVAL",
+      updatedAt: { gte: today },
     }),
-    prisma.case.count({ where: { createdAt: { gte: today } } }),
-    prisma.case.count({ where: { status: "WAITING_DEPLOYMENT" } }),
-    prisma.case.count({
-      where: { caseType: "BUG", status: { notIn: ["CLOSED", "MERGED"] } },
+    countWithVisibility({ createdAt: { gte: today } }),
+    countWithVisibility({ status: "WAITING_DEPLOYMENT" }),
+    countWithVisibility({
+      caseType: "BUG",
+      status: { notIn: ["CLOSED", "MERGED"] },
     }),
   ]);
 
@@ -343,7 +351,7 @@ export async function createCaseManual(data: {
 
   const coordinator =
     status === "OPEN" && governorate !== "غير محدد"
-      ? await resolveCoordinatorForGovernorate(governorate)
+      ? await resolveCoordinatorForReport(governorate, data.affectedSystem)
       : null;
 
   const created = await prisma.case.create({
@@ -1006,7 +1014,7 @@ export async function createCaseFromReport(data: {
   const reportAttachments =
     report?.attachments.filter((a) => a.url && !a.url.includes("placeholder")) ?? [];
 
-  const coordinator = await resolveCoordinatorForGovernorate(data.governorate);
+  const coordinator = await resolveCoordinatorForReport(data.governorate, data.affectedSystem);
 
   return prisma.case.create({
     data: {

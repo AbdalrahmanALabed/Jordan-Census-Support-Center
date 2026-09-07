@@ -142,12 +142,13 @@ export function ReportClassifyDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{titles[step]}</DialogTitle>
-          <DialogDescription>{descriptions[step]}</DialogDescription>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b bg-muted/20">
+          <DialogTitle className="text-lg font-black leading-snug">{titles[step]}</DialogTitle>
+          <DialogDescription className="text-sm leading-relaxed">{descriptions[step]}</DialogDescription>
         </DialogHeader>
 
+        <div className="flex-1 overflow-y-auto px-6 py-5 min-h-0">
         {step === "review" && (
           <div className="space-y-4">
             <ReportDetailsPanel report={report} reviewMode />
@@ -170,7 +171,7 @@ export function ReportClassifyDialog({
         )}
 
         {step === "choose" && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {startAtReview && (
               <Button
                 variant="ghost"
@@ -186,23 +187,23 @@ export function ReportClassifyDialog({
               <button
                 type="button"
                 onClick={() => setStep("bug")}
-                className="flex flex-col items-center gap-2 rounded-xl border-2 border-emerald-300 bg-emerald-50/80 dark:bg-emerald-950/20 p-6 hover:shadow-md transition-all cursor-pointer"
+                className="flex flex-col items-center gap-3 rounded-2xl border-2 border-emerald-300 bg-emerald-50/80 dark:bg-emerald-950/20 p-6 hover:shadow-md transition-all cursor-pointer text-center min-h-[10rem]"
               >
-                <Bug className="h-8 w-8 text-emerald-600" />
-                <span className="font-black text-emerald-800 dark:text-emerald-200">عطل تقني</span>
-                <span className="text-xs text-muted-foreground text-center">
+                <Bug className="h-9 w-9 text-emerald-600 shrink-0" />
+                <span className="font-black text-emerald-800 dark:text-emerald-200 text-base">عطل تقني</span>
+                <span className="text-xs text-muted-foreground leading-relaxed px-2">
                   BUG — إسناد وفتح حالة
                 </span>
               </button>
               <button
                 type="button"
                 onClick={() => setStep("not_problem")}
-                className="flex flex-col items-center gap-2 rounded-xl border-2 border-red-300 bg-red-50/50 dark:bg-red-950/20 p-6 hover:shadow-md transition-all cursor-pointer"
+                className="flex flex-col items-center gap-3 rounded-2xl border-2 border-red-300 bg-red-50/50 dark:bg-red-950/20 p-6 hover:shadow-md transition-all cursor-pointer text-center min-h-[10rem]"
               >
-                <XCircle className="h-8 w-8 text-red-600" />
-                <span className="font-black text-red-800 dark:text-red-200">ليست مشكلة</span>
-                <span className="text-xs text-muted-foreground text-center">
-                  اختر التصنيف الفني المناسب
+                <XCircle className="h-9 w-9 text-red-600 shrink-0" />
+                <span className="font-black text-red-800 dark:text-red-200 text-base">ليست مشكلة</span>
+                <span className="text-xs text-muted-foreground leading-relaxed px-2">
+                  MDM، شبكة، جهاز، تدريب...
                 </span>
               </button>
             </div>
@@ -276,14 +277,18 @@ export function ReportClassifyDialog({
         )}
 
         {step === "not_problem" && (
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-4">
             <NotProblemReasonPicker
               value={notProblemIssueId}
               onChange={setNotProblemIssueId}
               note={notProblemNote}
               onNoteChange={setNotProblemNote}
             />
-            <div className="flex gap-2 pt-1">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 pt-1 sticky bottom-0 bg-background/95 pb-1">
+              <Button variant="outline" className="sm:w-auto" onClick={() => setStep("choose")}>
+                <ArrowRight className="h-4 w-4" />
+                رجوع
+              </Button>
               <Button
                 variant="destructive"
                 className="flex-1"
@@ -292,13 +297,10 @@ export function ReportClassifyDialog({
               >
                 {notProblemMutation.isPending ? "جاري الحفظ..." : "حفظ التصنيف"}
               </Button>
-              <Button variant="outline" onClick={() => setStep("choose")}>
-                <ArrowRight className="h-4 w-4" />
-                رجوع
-              </Button>
             </div>
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   );

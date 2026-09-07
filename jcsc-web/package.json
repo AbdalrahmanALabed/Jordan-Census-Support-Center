@@ -17,7 +17,10 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:setup": "prisma db push && tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:e2e": "node scripts/e2e-full-system.mjs",
+    "test:smoke": "node scripts/smoke-routes.mjs",
+    "test:ui": "node scripts/ui-visible-workflow.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.3.0",

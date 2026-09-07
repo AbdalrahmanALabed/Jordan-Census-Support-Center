@@ -9,6 +9,7 @@ export const USER_ROLE_TIMELINE_LABELS: Partial<Record<UserRole, string>> = {
   SUPERVISOR: "الدعم الفني المراكز",
   SUPPORT_SUPERVISOR: "مشرف الدعم",
   SUPPORT_COORDINATOR: "منسق الدعم",
+  FIELD_OPERATIONS_COORDINATOR: "منسق إدارة العمل الميداني",
   ADMIN: "سوبر أدمن",
   DEVELOPER: "مطور",
   SUPPORT_MANAGER: "مدير الدعم",

@@ -63,6 +63,11 @@ const DEMO_ACCOUNTS = [
     accent: "border-indigo-400/35 bg-indigo-400/15 hover:bg-indigo-400/25 text-indigo-100",
   },
   {
+    role: "منسق إدارة العمل الميداني",
+    email: "fieldops.coord@jcsc.gov.jo",
+    accent: "border-orange-400/35 bg-orange-400/15 hover:bg-orange-400/25 text-orange-100",
+  },
+  {
     role: "منسق الدعم",
     email: "razan.m@jcsc.gov.jo",
     accent: "border-cyan-400/35 bg-cyan-400/15 hover:bg-cyan-400/25 text-cyan-100",

@@ -14,6 +14,7 @@ import {
 } from "@/lib/cases/server";
 import { censusSystemToLabel } from "@/lib/types";
 import { resolveAssigneeId } from "@/lib/assignees/server";
+import { filterItemsByFieldOpsVisibility } from "@/lib/field-ops-visibility";
 
 export async function GET(req: NextRequest) {
   const { session, response } = await requireSession();
@@ -41,7 +42,8 @@ export async function GET(req: NextRequest) {
 
   if (awaiting) {
     const cases = await getAwaitingApprovalCasesDb();
-    return NextResponse.json(cases.map(mapCaseToClient));
+    const visibleCases = filterItemsByFieldOpsVisibility(cases, session!.user.role);
+    return NextResponse.json(visibleCases.map(mapCaseToClient));
   }
 
   const search = req.nextUrl.searchParams.get("search") ?? undefined;
@@ -84,7 +86,13 @@ export async function GET(req: NextRequest) {
     assignedCoordinatorId,
     limit: limit && limit > 0 ? limit : undefined,
   });
-  return NextResponse.json(cases.map(mapCaseToClient));
+
+  const visibleCases = filterItemsByFieldOpsVisibility(cases, session!.user.role, {
+    viewerId: session!.user.id,
+    includeOwnSubmissions: Boolean(createdById),
+  });
+
+  return NextResponse.json(visibleCases.map(mapCaseToClient));
 }
 
 export async function POST(req: NextRequest) {

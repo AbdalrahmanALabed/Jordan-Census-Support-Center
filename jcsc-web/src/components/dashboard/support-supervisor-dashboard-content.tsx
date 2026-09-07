@@ -39,6 +39,7 @@ type TeamCase = SupportSupervisorDashboardData["recentCases"][number];
 
 const ROLE_AVATAR: Record<string, string> = {
   SUPPORT_COORDINATOR: "bg-gradient-to-br from-cyan-500 to-teal-600 text-white",
+  FIELD_OPERATIONS_COORDINATOR: "bg-gradient-to-br from-orange-500 to-amber-600 text-white",
   SUPERVISOR: "bg-gradient-to-br from-sky-500 to-blue-600 text-white",
 };
 
@@ -233,7 +234,7 @@ export function SupportSupervisorDashboardContent() {
   const { currentUser } = useUserStore();
   const firstName = currentUser?.name?.split(" ")[0] ?? "";
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["support-supervisor-dashboard"],
     queryFn: getSupportSupervisorDashboard,
     refetchInterval: 60_000,
@@ -250,7 +251,10 @@ export function SupportSupervisorDashboardContent() {
   );
 
   const coordinators = useMemo(
-    () => sortedTeam.filter((m) => m.role === "SUPPORT_COORDINATOR").length,
+    () =>
+      sortedTeam.filter(
+        (m) => m.role === "SUPPORT_COORDINATOR" || m.role === "FIELD_OPERATIONS_COORDINATOR"
+      ).length,
     [sortedTeam]
   );
 
@@ -259,7 +263,19 @@ export function SupportSupervisorDashboardContent() {
     [sortedTeam]
   );
 
-  if (isLoading || !data) return <DashboardSkeleton />;
+  if (isLoading) return <DashboardSkeleton />;
+
+  if (isError || !data) {
+    return (
+      <div className="content-container py-16 text-center space-y-4">
+        <p className="text-lg font-black text-destructive">تعذّر تحميل لوحة مشرف الدعم</p>
+        <p className="text-sm text-muted-foreground">تحقق من الاتصال ثم أعد المحاولة</p>
+        <Button onClick={() => refetch()} className="font-bold">
+          إعادة المحاولة
+        </Button>
+      </div>
+    );
+  }
 
   const { stats, recentCases } = data;
   const hasTeam = stats.teamSize > 0;

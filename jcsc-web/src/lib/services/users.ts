@@ -76,12 +76,16 @@ export async function updateUser(
 export async function resetUserPassword(
   userId: string,
   password?: string
-): Promise<boolean> {
-  const result = await apiFetchResult<{ success: boolean }>(`/api/users/${userId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ action: "reset_password", password }),
-  });
-  return result.ok && result.data.success;
+): Promise<string | null> {
+  const result = await apiFetchResult<{ success: boolean; initialPassword?: string }>(
+    `/api/users/${userId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ action: "reset_password", password }),
+    }
+  );
+  if (!result.ok || !result.data.success) return null;
+  return result.data.initialPassword ?? null;
 }
 
 export async function updateUserPermissions(

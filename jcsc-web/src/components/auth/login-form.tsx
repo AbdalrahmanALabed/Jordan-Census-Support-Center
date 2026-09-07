@@ -23,8 +23,6 @@ import { JordanCensusLogo } from "@/components/brand/jordan-census-logo";
 import { cn } from "@/lib/utils";
 import { withBasePath } from "@/lib/base-path";
 
-const DEMO_PASSWORD = "jcsc2026";
-
 const FEATURES = [
   {
     icon: BarChart3,
@@ -55,44 +53,6 @@ const FEATURES = [
     bg: "bg-amber-500/15",
   },
 ];
-
-const DEMO_ACCOUNTS = [
-  {
-    role: "سوبر أدمن",
-    email: "admin@jcsc.gov.jo",
-    accent: "border-indigo-400/35 bg-indigo-400/15 hover:bg-indigo-400/25 text-indigo-100",
-  },
-  {
-    role: "منسق إدارة العمل الميداني",
-    email: "fieldops.coord@jcsc.gov.jo",
-    accent: "border-orange-400/35 bg-orange-400/15 hover:bg-orange-400/25 text-orange-100",
-  },
-  {
-    role: "منسق الدعم",
-    email: "razan.m@jcsc.gov.jo",
-    accent: "border-cyan-400/35 bg-cyan-400/15 hover:bg-cyan-400/25 text-cyan-100",
-  },
-  {
-    role: "مشرف الدعم",
-    email: "support-supervisor@jcsc.gov.jo",
-    accent: "border-teal-400/35 bg-teal-400/15 hover:bg-teal-400/25 text-teal-100",
-  },
-  {
-    role: "الدعم الفني المراكز",
-    email: "supervisor@jcsc.gov.jo",
-    accent: "border-sky-400/35 bg-sky-400/15 hover:bg-sky-400/25 text-sky-100",
-  },
-  {
-    role: "مطور",
-    email: "hazem@jcsc.gov.jo",
-    accent: "border-violet-400/35 bg-violet-400/15 hover:bg-violet-400/25 text-violet-100",
-  },
-  {
-    role: "قاعدة بيانات",
-    email: "mohammad.h@jcsc.gov.jo",
-    accent: "border-amber-400/35 bg-amber-400/15 hover:bg-amber-400/25 text-amber-100",
-  },
-] as const;
 
 const STATS = [
   { value: "4", label: "أنظمة تعداد" },
@@ -129,12 +89,6 @@ export function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function loginWithDemo(accountEmail: string) {
-    setEmail(accountEmail);
-    setPassword(DEMO_PASSWORD);
-    await performLogin(accountEmail, DEMO_PASSWORD);
-  }
-
   async function performLogin(emailValue: string, passwordValue: string) {
     const trimmedEmail = emailValue.trim().toLowerCase();
     const trimmedPassword = passwordValue.trim();
@@ -155,9 +109,7 @@ export function LoginForm() {
       });
 
       if (result?.error || !result?.ok) {
-        setError(
-          "البريد الإلكتروني أو كلمة المرور غير صحيحة. للحسابات الجديدة الافتراضية: jcsc2026"
-        );
+        setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
         setLoading(false);
         return;
       }
@@ -190,10 +142,8 @@ export function LoginForm() {
 
   return (
     <div className="login-page-shell relative flex min-h-screen overflow-hidden" dir="rtl">
-      {/* خلفية موحّدة للصفحة */}
       <div className="login-page-ambient pointer-events-none absolute inset-0" aria-hidden />
 
-      {/* ── نموذج الدخول (يمين في RTL) ── */}
       <div className="login-form-side relative z-10 flex flex-1 items-center justify-center p-5 sm:p-8 lg:p-12">
         <div className="relative z-10 w-full max-w-[420px] space-y-6 animate-fade-in-up">
           <div className="lg:hidden flex justify-center pb-2">
@@ -290,34 +240,6 @@ export function LoginForm() {
                   )}
                 </Button>
               </form>
-
-              <div className="mt-7 pt-6 border-t border-white/15">
-                <p className="text-xs font-black text-white/55 text-center mb-3">
-                  حسابات تجريبية — اضغط للدخول مباشرة · كلمة المرور:{" "}
-                  <span className="font-mono text-indigo-300" dir="ltr">
-                    {DEMO_PASSWORD}
-                  </span>
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {DEMO_ACCOUNTS.map(({ role, email: demoEmail, accent }) => (
-                    <button
-                      key={demoEmail}
-                      type="button"
-                      disabled={loading}
-                      onClick={() => void loginWithDemo(demoEmail)}
-                      className={cn(
-                        "rounded-xl border-2 px-3 py-2.5 text-start transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none",
-                        accent
-                      )}
-                    >
-                      <p className="text-xs font-black leading-snug">{role}</p>
-                      <p className="text-[10px] opacity-80 mt-0.5 truncate font-mono" dir="ltr">
-                        {demoEmail}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
 
@@ -328,7 +250,6 @@ export function LoginForm() {
         </div>
       </div>
 
-      {/* ── لوحة العلامة التجارية (يسار في RTL) ── */}
       <div className="login-brand-side hidden lg:flex lg:w-[46%] xl:w-[52%] relative z-10 flex-col justify-between p-10 xl:p-14 overflow-hidden border-s border-white/[0.08]">
         <div className="login-orb absolute top-16 start-16 h-80 w-80 rounded-full bg-indigo-400/25" />
         <div className="login-orb login-orb-delay absolute bottom-20 end-10 h-64 w-64 rounded-full bg-violet-400/20" />

@@ -7,6 +7,6 @@ __pycache__/
 dist/
 build/
 .venv/
-jcsc-web/node_modules/
-jcsc-web/.next/
+jcsc-web/public/uploads/*
+!jcsc-web/public/uploads/.gitkeep
 *.zip

@@ -12,6 +12,7 @@ import {
 import { isSupportCoordinatorRole } from "@/lib/permissions";
 import { isUserManagedBy } from "@/lib/support-supervisor/server";
 import { normalizeEmail } from "@/lib/email";
+import { generateSecurePassword } from "@/lib/auth/passwords";
 import type { UserRole } from "@prisma/client";
 
 export async function PATCH(
@@ -38,7 +39,8 @@ export async function PATCH(
   }
 
   if (body.action === "reset_password") {
-    const passwordHash = await hash(body.password?.trim() || "jcsc2026", 10);
+    const newPassword = body.password?.trim() || generateSecurePassword();
+    const passwordHash = await hash(newPassword, 10);
     await prisma.user.update({ where: { id }, data: { password: passwordHash } });
     await logAudit({
       action: "EDIT",
@@ -47,7 +49,7 @@ export async function PATCH(
       userId: actorId,
       details: "password_reset",
     });
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, initialPassword: newPassword });
   }
 
   if (body.action === "toggle_active") {

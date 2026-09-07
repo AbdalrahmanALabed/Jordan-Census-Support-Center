@@ -6,6 +6,7 @@ import {
   applyDeveloperEscalationHierarchy,
 } from "../src/lib/developers/escalation-hierarchy";
 import { REGIONAL_COORDINATORS, FIELD_OPERATIONS_COORDINATOR } from "../src/lib/coordinator-routing";
+import { getProductionPassword } from "./production-passwords";
 
 const prisma = new PrismaClient();
 
@@ -115,8 +116,6 @@ const ROUTING_RULES = [
 ];
 
 async function main() {
-  const passwordHash = await hash("jcsc2026", 10);
-
   await prisma.auditLog.deleteMany();
   await prisma.notificationDebounce.deleteMany();
   await prisma.notification.deleteMany();
@@ -197,6 +196,8 @@ async function main() {
 
   const createdUsers: Record<string, string> = {};
   for (const u of users) {
+    const plainPassword = getProductionPassword(u.email) ?? "ChangeMe!" + u.email.slice(0, 4);
+    const passwordHash = await hash(plainPassword, 10);
     const user = await prisma.user.create({
       data: {
         ...u,
@@ -302,7 +303,7 @@ async function main() {
     devAbdullahId: createdUsers["abdullah.m@jcsc.gov.jo"],
   });
 
-  console.log("Seed completed. Default password for all users: jcsc2026");
+  console.log("Seed completed. Production passwords are in prisma/production-passwords.ts");
 }
 
 main()

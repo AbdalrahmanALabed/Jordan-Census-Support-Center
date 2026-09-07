@@ -181,7 +181,11 @@ function UserManagementInner() {
       queryClient.invalidateQueries({ queryKey: ["users-manage"] });
       queryClient.invalidateQueries({ queryKey: ["assignee-options"] });
       const loginEmail = created.email;
-      const loginPassword = created.initialPassword ?? (password.trim() || "jcsc2026");
+      const loginPassword = created.initialPassword ?? password.trim();
+      if (!loginPassword) {
+        alert(`تم إنشاء الحساب بنجاح.\n\nالبريد: ${loginEmail}`);
+        return;
+      }
       alert(
         `تم إنشاء الحساب بنجاح.\n\nالبريد: ${loginEmail}\nكلمة المرور: ${loginPassword}\n\nاستخدم هذه البيانات لتسجيل الدخول.`
       );
@@ -216,7 +220,12 @@ function UserManagementInner() {
 
   const resetMutation = useMutation({
     mutationFn: (userId: string) => resetUserPassword(userId),
-    onSuccess: () => alert("تم إعادة تعيين كلمة المرور إلى: jcsc2026"),
+    onSuccess: (newPassword) =>
+      alert(
+        newPassword
+          ? `تم إعادة تعيين كلمة المرور.\n\nكلمة المرور الجديدة: ${newPassword}`
+          : "تم إعادة تعيين كلمة المرور"
+      ),
   });
 
   const filtered = useMemo(
@@ -352,7 +361,7 @@ function UserManagementInner() {
                   <Input
                     className="h-11 border-2 text-start"
                     dir="ltr"
-                    placeholder="jcsc2026 (افتراضي)"
+                    placeholder="اتركها فارغة لتوليد كلمة مرور عشوائية"
                     type="password"
                     autoComplete="new-password"
                     value={password}
@@ -444,7 +453,7 @@ function UserManagementInner() {
               </div>
               <p className="text-xs text-muted-foreground font-bold flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5 shrink-0" />
-                إذا لم تُحدَّد كلمة مرور، تكون الافتراضية: jcsc2026
+                إذا لم تُحدَّد كلمة مرور، يُولَّد نظاماً كلمة مرور عشوائية آمنة
               </p>
             </CardContent>
           </Card>

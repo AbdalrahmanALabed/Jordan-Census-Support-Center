@@ -13,6 +13,7 @@ import { isSupportCoordinatorRole } from "@/lib/permissions";
 import { getManagedUsers } from "@/lib/support-supervisor/server";
 import { canViewRegionalCoordinatorUsers } from "@/lib/coordinator-routing";
 import { normalizeEmail } from "@/lib/email";
+import { generateSecurePassword } from "@/lib/auth/passwords";
 import type { UserRole } from "@prisma/client";
 
 async function applyUserPermissions(
@@ -185,7 +186,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Email already exists" }, { status: 409 });
   }
 
-  const plainPassword = password?.trim() || "jcsc2026";
+  const plainPassword = password?.trim() || generateSecurePassword();
   const passwordHash = await hash(plainPassword, 10);
   const canAssignPerms =
     hasApiPermission(session!, "manage_roles") ||

@@ -51,7 +51,10 @@ export async function GET(
     !canViewItemByFieldOpsRules(
       { affectedSystem: caseItem.affectedSystem },
       session!.user.role,
-      { isOwnSubmission: caseItem.createdById === session!.user.id }
+      {
+        isOwnSubmission: caseItem.createdById === session!.user.id,
+        isAssignedDeveloper: caseItem.assignedDeveloperId === session!.user.id,
+      }
     )
   ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

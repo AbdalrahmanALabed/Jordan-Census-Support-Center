@@ -20,6 +20,7 @@ export function isFieldOperationsItem(item: WithAffectedSystem): boolean {
 type FilterableItem = WithAffectedSystem & {
   createdById?: string | null;
   supervisorId?: string | null;
+  assignedDeveloperId?: string | null;
 };
 
 function itemOwnerId(item: FilterableItem): string | null | undefined {
@@ -40,6 +41,9 @@ export function filterItemsByFieldOpsVisibility<T extends FilterableItem>(
 
   return items.filter((item) => {
     if (!isFieldOperationsItem(item)) return true;
+    if (options?.viewerId && item.assignedDeveloperId === options.viewerId) {
+      return true;
+    }
     if (
       options?.includeOwnSubmissions &&
       options.viewerId &&
@@ -55,7 +59,7 @@ export function filterItemsByFieldOpsVisibility<T extends FilterableItem>(
 export function canViewItemByFieldOpsRules(
   item: WithAffectedSystem,
   role?: UserRole | string | null,
-  options?: { isOwnSubmission?: boolean }
+  options?: { isOwnSubmission?: boolean; isAssignedDeveloper?: boolean }
 ): boolean {
   if (!role) return false;
   if (isSuperAdminRole(role as UserRole)) return true;
@@ -68,6 +72,7 @@ export function canViewItemByFieldOpsRules(
 
   if (isFieldOps) {
     if (options?.isOwnSubmission && role === "SUPERVISOR") return true;
+    if (options?.isAssignedDeveloper && role === "DEVELOPER") return true;
     return false;
   }
 

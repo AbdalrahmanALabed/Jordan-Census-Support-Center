@@ -4,10 +4,10 @@
  * Env:   BASE_URL=http://localhost:3000
  */
 import { chromium } from "playwright";
+import { passwordFor } from "./test-credentials.mjs";
 
 const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const BP = "/Support_Center";
-const PASSWORD = "jcsc2026";
 
 const ACCOUNTS = {
   admin: "admin@jcsc.gov.jo",
@@ -159,7 +159,9 @@ async function login(page, email, retries = 3) {
       await emailInput.fill("");
       await passInput.fill("");
       await emailInput.fill(email);
-      await passInput.fill(PASSWORD);
+      const pwd = passwordFor(email);
+      if (!pwd) throw new Error(`لا توجد كلمة مرور اختبار للحساب: ${email}`);
+      await passInput.fill(pwd);
       await page.click('button[type="submit"]');
       await page.waitForURL(
         (url) => !url.pathname.includes("/login"),

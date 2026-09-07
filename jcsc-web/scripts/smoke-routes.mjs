@@ -3,10 +3,10 @@
  * Usage: node scripts/smoke-routes.mjs
  */
 import { chromium } from "playwright";
+import { passwordFor } from "./test-credentials.mjs";
 
 const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const BP = "/Support_Center";
-const PASSWORD = "jcsc2026";
 
 const ROLES = [
   {
@@ -36,14 +36,32 @@ const ROLES = [
   },
 ];
 
-async function login(page, email) {
-  await page.goto(`${BASE}${BP}/login`, { waitUntil: "domcontentloaded" });
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', PASSWORD);
-  await Promise.all([
-    page.waitForURL((url) => !url.pathname.includes("/login"), { timeout: 20000 }),
-    page.click('button[type="submit"]'),
-  ]);
+async function login(page, email, retries = 3) {
+  const pwd = passwordFor(email);
+  if (!pwd) throw new Error(`No test password for ${email}`);
+  let lastErr;
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      await page.goto(`${BASE}${BP}/login`, { waitUntil: "domcontentloaded", timeout: 30000 });
+      await page.waitForSelector('form button[type="submit"]', { timeout: 15000 });
+      const emailInput = page.locator('input[name="email"], input[type="email"]').first();
+      const passInput = page.locator('input[name="password"], input[type="password"]').first();
+      await emailInput.fill("");
+      await passInput.fill("");
+      await emailInput.fill(email);
+      await passInput.fill(pwd);
+      await page.click('button[type="submit"]');
+      await page.waitForURL((url) => !url.pathname.includes("/login"), {
+        timeout: 45000,
+        waitUntil: "domcontentloaded",
+      });
+      return;
+    } catch (e) {
+      lastErr = e;
+      await page.waitForTimeout(1000);
+    }
+  }
+  throw lastErr ?? new Error(`Login failed for ${email}`);
 }
 
 async function checkPage(page, path) {
@@ -105,8 +123,9 @@ for (const role of ROLES) {
     }
   }
 
-  await page.goto(`${BASE}${BP}/api/auth/signout`, { waitUntil: "domcontentloaded" }).catch(() => {});
+  await page.goto(`${BASE}${BP}/login`, { waitUntil: "domcontentloaded" }).catch(() => {});
   await context.clearCookies();
+  await page.waitForTimeout(400);
 }
 
 await browser.close();

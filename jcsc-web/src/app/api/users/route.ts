@@ -92,7 +92,15 @@ export async function GET() {
 
   if (isCoordinatorLead && canViewRegionalCoordinatorUsers(actorRole)) {
     const coordinators = await prisma.user.findMany({
-      where: { role: { in: ["SUPPORT_COORDINATOR", "FIELD_OPERATIONS_COORDINATOR"] } },
+      where: {
+        role: {
+          in: [
+            "SUPPORT_COORDINATOR",
+            "FIELD_OPERATIONS_COORDINATOR",
+            "RESEARCHER_FIELD_COORDINATOR",
+          ],
+        },
+      },
       orderBy: { name: "asc" },
     });
     const enriched = await Promise.all(

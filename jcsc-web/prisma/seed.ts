@@ -308,17 +308,22 @@ async function main() {
     ],
   });
 
-  await seedQaData(prisma, {
-    adminId,
-    coordinatorId: razanId,
-    supervisorId,
-    supervisorAqabaId,
-    devHazemId: devId,
-    devHamzaId: createdUsers["hamza@jcsc.gov.jo"],
-    devBoranId: createdUsers["boran@jcsc.gov.jo"],
-    devDbId: dbId,
-    devAbdullahId: createdUsers["abdullah.m@jcsc.gov.jo"],
-  });
+  if (process.env.SEED_QA_DATA === "true") {
+    await seedQaData(prisma, {
+      adminId,
+      coordinatorId: razanId,
+      supervisorId,
+      supervisorAqabaId,
+      devHazemId: devId,
+      devHamzaId: createdUsers["hamza@jcsc.gov.jo"],
+      devBoranId: createdUsers["boran@jcsc.gov.jo"],
+      devDbId: dbId,
+      devAbdullahId: createdUsers["abdullah.m@jcsc.gov.jo"],
+    });
+    console.log("QA demo data seeded (SEED_QA_DATA=true)");
+  } else {
+    console.log("Skipped QA demo data (set SEED_QA_DATA=true to include test reports/cases)");
+  }
 
   console.log("Seed completed. Production passwords are in prisma/production-passwords.ts");
 }

@@ -47,7 +47,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   if (
     !canViewItemByFieldOpsRules(
-      { affectedSystem: report.affectedSystem },
+      {
+        affectedSystem: report.affectedSystem,
+        researcherIssueType: report.researcherIssueType,
+      },
       session!.user.role,
       { isOwnSubmission: report.supervisorId === session!.user.id }
     )

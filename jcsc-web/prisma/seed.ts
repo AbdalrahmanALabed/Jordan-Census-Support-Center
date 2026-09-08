@@ -5,7 +5,7 @@ import {
   AHMED_AY_PROFILE,
   applyDeveloperEscalationHierarchy,
 } from "../src/lib/developers/escalation-hierarchy";
-import { REGIONAL_COORDINATORS, FIELD_OPERATIONS_COORDINATOR } from "../src/lib/coordinator-routing";
+import { REGIONAL_COORDINATORS, FIELD_OPERATIONS_COORDINATOR, RESEARCHER_FIELD_COORDINATOR } from "../src/lib/coordinator-routing";
 import { getProductionPassword } from "./production-passwords";
 
 const prisma = new PrismaClient();
@@ -50,6 +50,16 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     "manage_users",
   ],
   FIELD_OPERATIONS_COORDINATOR: [
+    "view_dashboard",
+    "submit_report",
+    "view_own_reports",
+    "review_reports",
+    "reject_reports",
+    "view_issues",
+    "close_issues",
+    "manage_users",
+  ],
+  RESEARCHER_FIELD_COORDINATOR: [
     "view_dashboard",
     "submit_report",
     "view_own_reports",
@@ -170,6 +180,13 @@ async function main() {
       email: FIELD_OPERATIONS_COORDINATOR.email,
       role: UserRole.FIELD_OPERATIONS_COORDINATOR,
       team: "منسق إدارة العمل الميداني",
+      governorate: "عمان",
+    },
+    {
+      name: RESEARCHER_FIELD_COORDINATOR.name,
+      email: RESEARCHER_FIELD_COORDINATOR.email,
+      role: UserRole.RESEARCHER_FIELD_COORDINATOR,
+      team: "مشرف الدعم الفني",
       governorate: "عمان",
     },
     { name: "دعم فني — إربد", email: "supervisor@jcsc.gov.jo", role: UserRole.SUPERVISOR, team: "الدعم الفني المراكز", governorate: "إربد" },

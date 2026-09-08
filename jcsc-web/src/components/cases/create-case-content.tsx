@@ -37,8 +37,10 @@ import {
   GOVERNORATES,
   CENSUS_SYSTEMS,
   censusSystemToLabel,
+  RESEARCHER_ISSUE_TYPES,
   type IssuePriority,
   type CensusSystem,
+  type ResearcherIssueType,
 } from "@/lib/types";
 import { useEffectiveUser } from "@/hooks/use-effective-user";
 import { useToast } from "@/components/ui/toast";
@@ -134,6 +136,7 @@ export function CreateCaseContent() {
   const [governorate, setGovernorate] = useState("");
   const [affectedUsers, setAffectedUsers] = useState(1);
   const [affectedSystem, setAffectedSystem] = useState<CensusSystem>("FIELD_OPERATIONS");
+  const [researcherIssueType, setResearcherIssueType] = useState<ResearcherIssueType | "">("");
   const [priority, setPriority] = useState<IssuePriority>("MEDIUM");
   const [severity, setSeverity] = useState<CaseSeverity>("MEDIUM");
   const [assignedDeveloperId, setAssignedDeveloperId] = useState("");
@@ -165,6 +168,8 @@ export function CreateCaseContent() {
         governorate: governorate.trim(),
         enumeratorsAffected: Math.max(1, affectedUsers),
         affectedSystem,
+        researcherIssueType:
+          affectedSystem === "RESEARCHER_SYSTEM" ? researcherIssueType : undefined,
         supervisorId: user?.id ?? "",
         supervisorName: user?.name ?? "مستخدم",
         attachmentNames: files.map((f) => ({
@@ -191,7 +196,8 @@ export function CreateCaseContent() {
     : description.trim().length > 0 &&
       Boolean(affectedSystem) &&
       Boolean(governorate.trim()) &&
-      affectedUsers >= 1;
+      affectedUsers >= 1 &&
+      (affectedSystem !== "RESEARCHER_SYSTEM" || Boolean(researcherIssueType));
 
   const selectedSystemLabel =
     CENSUS_SYSTEMS.find((s) => s.value === affectedSystem)?.label ?? "";
@@ -289,7 +295,10 @@ export function CreateCaseContent() {
                   <button
                     key={value}
                     type="button"
-                    onClick={() => setAffectedSystem(value)}
+                    onClick={() => {
+                      setAffectedSystem(value);
+                      if (value !== "RESEARCHER_SYSTEM") setResearcherIssueType("");
+                    }}
                     className={cn(
                       "flex items-center gap-3 rounded-xl border-2 p-4 text-start transition-all",
                       active
@@ -318,6 +327,37 @@ export function CreateCaseContent() {
                 );
               })}
             </div>
+            {affectedSystem === "RESEARCHER_SYSTEM" && (
+              <div className="mt-5 pt-5 border-t space-y-3">
+                <FieldLabel label="نوع المشكلة في نظام الباحث" required>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {RESEARCHER_ISSUE_TYPES.map(({ value, label }) => {
+                      const active = researcherIssueType === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setResearcherIssueType(value)}
+                          className={cn(
+                            "rounded-xl border-2 p-4 text-start transition-all",
+                            active
+                              ? "border-primary bg-primary/10 shadow-md ring-2 ring-primary/20"
+                              : "border-border bg-muted/30 hover:border-primary/35"
+                          )}
+                        >
+                          <span className="block text-sm font-black">{label}</span>
+                          <span className="mt-1 block text-xs text-muted-foreground leading-relaxed">
+                            {value === "TECHNICAL"
+                              ? "عطل تقني — يُوجّه لمنسق المحافظة"
+                              : "مشكلة فنية — تُوجّه لمشرف الدعم الفني بغض النظر عن المحافظة"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </FieldLabel>
+              </div>
+            )}
           </SectionCard>
 
           <SectionCard

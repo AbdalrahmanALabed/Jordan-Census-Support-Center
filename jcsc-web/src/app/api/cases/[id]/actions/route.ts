@@ -77,6 +77,7 @@ export async function POST(
       assignedCoordinatorId: existing.assignedCoordinatorId,
       governorate: existing.governorate,
       affectedSystem: existing.affectedSystem,
+      researcherIssueType: existing.researcherIssueType,
     });
     if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

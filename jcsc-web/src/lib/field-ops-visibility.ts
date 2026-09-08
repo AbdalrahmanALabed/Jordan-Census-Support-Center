@@ -2,11 +2,21 @@ import type { UserRole } from "@/lib/types";
 import {
   isSuperAdminRole,
   isFieldOperationsCoordinatorRole,
+  isResearcherFieldCoordinatorRole,
   isSupportSupervisorRole,
+  isSupportCoordinatorRole,
 } from "@/lib/permissions";
-import { isFieldOperationsAffectedSystem } from "@/lib/coordinator-routing";
+import {
+  isFieldOperationsAffectedSystem,
+  isResearcherAffectedSystem,
+  isResearcherFieldIssue,
+  RESEARCHER_SYSTEM_VALUES,
+} from "@/lib/coordinator-routing";
 
-type WithAffectedSystem = { affectedSystem?: string | null };
+type WithAffectedSystem = {
+  affectedSystem?: string | null;
+  researcherIssueType?: string | null;
+};
 
 /** من يرى بلاغات/حالات إدارة العمل الميداني */
 export function canViewFieldOperationsItems(role?: UserRole | string | null): boolean {
@@ -15,6 +25,10 @@ export function canViewFieldOperationsItems(role?: UserRole | string | null): bo
 
 export function isFieldOperationsItem(item: WithAffectedSystem): boolean {
   return isFieldOperationsAffectedSystem(item.affectedSystem);
+}
+
+export function isResearcherFieldItem(item: WithAffectedSystem): boolean {
+  return isResearcherFieldIssue(item);
 }
 
 type FilterableItem = WithAffectedSystem & {
@@ -27,7 +41,7 @@ function itemOwnerId(item: FilterableItem): string | null | undefined {
   return item.createdById ?? item.supervisorId;
 }
 
-/** فلترة قائمة — السوبر أدمن يرى الكل، منسق العمل الميداني يرى FOM فقط، الباقي يُستبعد FOM */
+/** فلترة قائمة — السوبر أدمن يرى الكل، منسقو FOM/الباحث الفني يرون نطاقهم فقط */
 export function filterItemsByFieldOpsVisibility<T extends FilterableItem>(
   items: T[],
   role?: UserRole | string | null,
@@ -39,19 +53,29 @@ export function filterItemsByFieldOpsVisibility<T extends FilterableItem>(
     return items.filter(isFieldOperationsItem);
   }
 
+  if (isResearcherFieldCoordinatorRole(role)) {
+    return items.filter(isResearcherFieldItem);
+  }
+
   return items.filter((item) => {
-    if (!isFieldOperationsItem(item)) return true;
-    if (options?.viewerId && item.assignedDeveloperId === options.viewerId) {
-      return true;
+    const isFieldOps = isFieldOperationsItem(item);
+    const isResearcherField = isResearcherFieldItem(item);
+
+    if (isFieldOps || isResearcherField) {
+      if (options?.viewerId && item.assignedDeveloperId === options.viewerId) {
+        return true;
+      }
+      if (
+        options?.includeOwnSubmissions &&
+        options.viewerId &&
+        itemOwnerId(item) === options.viewerId
+      ) {
+        return true;
+      }
+      return false;
     }
-    if (
-      options?.includeOwnSubmissions &&
-      options.viewerId &&
-      itemOwnerId(item) === options.viewerId
-    ) {
-      return true;
-    }
-    return false;
+
+    return true;
   });
 }
 
@@ -65,12 +89,17 @@ export function canViewItemByFieldOpsRules(
   if (isSuperAdminRole(role as UserRole)) return true;
 
   const isFieldOps = isFieldOperationsItem(item);
+  const isResearcherField = isResearcherFieldItem(item);
 
   if (isFieldOperationsCoordinatorRole(role)) {
     return isFieldOps;
   }
 
-  if (isFieldOps) {
+  if (isResearcherFieldCoordinatorRole(role)) {
+    return isResearcherField;
+  }
+
+  if (isFieldOps || isResearcherField) {
     if (options?.isOwnSubmission && role === "SUPERVISOR") return true;
     if (options?.isAssignedDeveloper && role === "DEVELOPER") return true;
     return false;
@@ -79,27 +108,60 @@ export function canViewItemByFieldOpsRules(
   return true;
 }
 
-/** مشرف الدعم لا يرى حالات FOM حتى لو من فريقه */
+/** مشرف الدعم لا يرى حالات FOM أو باحث+فني حتى لو من فريقه */
 export function supportSupervisorCanViewCase(
   item: WithAffectedSystem,
   role?: UserRole | string | null
 ): boolean {
   if (!isSupportSupervisorRole(role)) return true;
-  return !isFieldOperationsItem(item);
+  return !isFieldOperationsItem(item) && !isResearcherFieldItem(item);
 }
 
-/** شرط Prisma لاستبعاد/تضمين FOM في الاستعلامات */
+const FIELD_OPS_VALUES = ["FIELD_OPERATIONS", "إدارة العمل الميداني", "field_operations"];
+const RESEARCHER_VALUES = [...RESEARCHER_SYSTEM_VALUES];
+
+/** شرط Prisma لاستبعاد/تضمين FOM وباحث+فني في الاستعلامات */
 export function fieldOpsPrismaFilter(role?: UserRole | string | null):
-  | { affectedSystem: { in: string[] } }
-  | { NOT: { affectedSystem: { in: string[] } } }
+  | Record<string, unknown>
   | undefined {
   if (!role || isSuperAdminRole(role as UserRole)) return undefined;
 
-  const fieldOpsValues = ["FIELD_OPERATIONS", "إدارة العمل الميداني", "field_operations"];
-
   if (isFieldOperationsCoordinatorRole(role)) {
-    return { affectedSystem: { in: fieldOpsValues } };
+    return { affectedSystem: { in: FIELD_OPS_VALUES } };
   }
 
-  return { NOT: { affectedSystem: { in: fieldOpsValues } } };
+  if (isResearcherFieldCoordinatorRole(role)) {
+    return {
+      affectedSystem: { in: RESEARCHER_VALUES },
+      researcherIssueType: "FIELD",
+    };
+  }
+
+  if (isSupportCoordinatorRole(role) || isSupportSupervisorRole(role)) {
+    return {
+      AND: [
+        { NOT: { affectedSystem: { in: FIELD_OPS_VALUES } } },
+        {
+          OR: [
+            { NOT: { affectedSystem: { in: RESEARCHER_VALUES } } },
+            { researcherIssueType: { not: "FIELD" } },
+            { researcherIssueType: null },
+          ],
+        },
+      ],
+    };
+  }
+
+  return {
+    AND: [
+      { NOT: { affectedSystem: { in: FIELD_OPS_VALUES } } },
+      {
+        OR: [
+          { NOT: { affectedSystem: { in: RESEARCHER_VALUES } } },
+          { researcherIssueType: { not: "FIELD" } },
+          { researcherIssueType: null },
+        ],
+      },
+    ],
+  };
 }

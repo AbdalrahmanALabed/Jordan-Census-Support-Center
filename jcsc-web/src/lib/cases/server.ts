@@ -988,6 +988,7 @@ export async function createCaseFromReport(data: {
   affectedUsers: number;
   createdById: string;
   affectedSystem?: string;
+  researcherIssueType?: "TECHNICAL" | "FIELD" | null;
 }) {
   const report = await prisma.report.findUnique({
     where: { id: data.reportId },
@@ -1014,7 +1015,11 @@ export async function createCaseFromReport(data: {
   const reportAttachments =
     report?.attachments.filter((a) => a.url && !a.url.includes("placeholder")) ?? [];
 
-  const coordinator = await resolveCoordinatorForReport(data.governorate, data.affectedSystem);
+  const coordinator = await resolveCoordinatorForReport(
+    data.governorate,
+    data.affectedSystem,
+    data.researcherIssueType
+  );
 
   return prisma.case.create({
     data: {
@@ -1029,6 +1034,7 @@ export async function createCaseFromReport(data: {
       affectedUsers: data.affectedUsers,
       affectedGovernorates: JSON.stringify([data.governorate]),
       affectedSystem: systemLabel,
+      researcherIssueType: data.researcherIssueType ?? null,
       governorate: data.governorate,
       createdById: data.createdById,
       assignedCoordinatorId: coordinator?.id ?? null,
@@ -1058,7 +1064,10 @@ export async function createCaseFromReport(data: {
             ? [
                 {
                   action: "توجيه للمنسق",
-                  details: `${coordinator.name} — ${data.governorate}`,
+                  details:
+                    data.researcherIssueType === "FIELD"
+                      ? `${coordinator.name} — نظام الباحث (فني)`
+                      : `${coordinator.name} — ${data.governorate}`,
                   actorName: "النظام",
                 },
               ]

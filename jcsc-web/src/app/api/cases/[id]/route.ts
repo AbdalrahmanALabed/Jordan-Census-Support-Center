@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, hasApiPermission } from "@/lib/api-auth";
-import { isSupportSupervisorRole, isSuperAdminRole } from "@/lib/permissions";
+import { isSupportSupervisorRole, isSuperAdminRole, isResearcherFieldCoordinatorRole } from "@/lib/permissions";
 import { isCaseVisibleToSupportSupervisor } from "@/lib/support-supervisor/server";
 import { isCaseAssignedToCoordinator } from "@/lib/coordinator-routing";
 import {
@@ -49,7 +49,10 @@ export async function GET(
 
   if (
     !canViewItemByFieldOpsRules(
-      { affectedSystem: caseItem.affectedSystem },
+      {
+        affectedSystem: caseItem.affectedSystem,
+        researcherIssueType: caseItem.researcherIssueType,
+      },
       session!.user.role,
       {
         isOwnSubmission: caseItem.createdById === session!.user.id,
@@ -78,6 +81,13 @@ export async function GET(
   }
 
   if (
+    isResearcherFieldCoordinatorRole(session!.user.role) &&
+    caseItem.assignedCoordinatorId !== session!.user.id
+  ) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (
     session!.user.role === "SUPPORT_COORDINATOR" &&
     !isSuperAdminRole(session!.user.role as import("@prisma/client").UserRole)
   ) {
@@ -85,6 +95,7 @@ export async function GET(
       assignedCoordinatorId: caseItem.assignedCoordinatorId,
       governorate: caseItem.governorate,
       affectedSystem: caseItem.affectedSystem,
+      researcherIssueType: caseItem.researcherIssueType,
     });
     if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -188,6 +188,7 @@ export async function submitFieldReport(data: {
   center?: string;
   enumeratorsAffected?: number;
   submissionChannel?: string;
+  researcherIssueType?: string;
   supervisorId: string;
   supervisorName: string;
   attachmentNames?: { name: string; type: FieldReport["attachments"][0]["type"]; url?: string }[];
@@ -202,6 +203,7 @@ export async function submitFieldReport(data: {
       center: data.center,
       enumeratorsAffected: data.enumeratorsAffected ?? 1,
       submissionChannel: data.submissionChannel ?? "app",
+      researcherIssueType: data.researcherIssueType,
       supervisorId: data.supervisorId,
       attachmentNames: data.attachmentNames,
     }),

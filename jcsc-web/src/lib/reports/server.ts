@@ -93,6 +93,7 @@ export function mapReportToClient(report: Awaited<ReturnType<typeof fetchReport>
     recommendedPriority: report.recommendedPriority ?? undefined,
     submissionChannel: report.submissionChannel,
     affectedSystem: report.affectedSystem ?? undefined,
+    researcherIssueType: report.researcherIssueType ?? undefined,
     attachments: report.attachments.map((a) => ({
       id: a.id,
       reportId: a.reportId,

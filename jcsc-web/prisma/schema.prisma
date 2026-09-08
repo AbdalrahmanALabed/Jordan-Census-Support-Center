@@ -12,6 +12,7 @@ enum UserRole {
   SUPPORT_SUPERVISOR
   SUPPORT_COORDINATOR
   FIELD_OPERATIONS_COORDINATOR
+  RESEARCHER_FIELD_COORDINATOR
   SUPPORT_MANAGER
   SUPPORT_L1
   SUPPORT_L2
@@ -21,6 +22,11 @@ enum UserRole {
   GIS
   SUPERVISOR
   CALL_CENTER
+}
+
+enum ResearcherIssueType {
+  TECHNICAL
+  FIELD
 }
 
 enum ReportStatus {
@@ -237,6 +243,7 @@ model Report {
   convertedIssueId      String?               @unique
   submissionChannel     String                @default("app")
   affectedSystem        String                @default("FIELD_OPERATIONS")
+  researcherIssueType   ResearcherIssueType?
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
 
@@ -429,6 +436,7 @@ model Case {
   affectedUsers         Int               @default(1)
   affectedGovernorates  String            @default("[]")
   affectedSystem        String
+  researcherIssueType   ResearcherIssueType?
   suggestedTeam         String?
   assignedTeam          String?
   assignedDeveloperId   String?

@@ -1,4 +1,4 @@
-import type { TicketPriority, UserRole, CensusSystem } from "@/lib/types";
+import type { ResearcherIssueType } from "@/lib/types";
 
 export type ReportStatus =
   | "NEW"
@@ -57,6 +57,7 @@ export interface FieldReport {
   recommendedPriority?: TicketPriority;
   submissionChannel?: string;
   affectedSystem?: CensusSystem | string;
+  researcherIssueType?: ResearcherIssueType | string;
   similarReportIds?: string[];
   attachments: ReportAttachment[];
   managerDecision?: "CONFIRMED_PROBLEM" | "NOT_A_PROBLEM";

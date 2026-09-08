@@ -3,6 +3,7 @@ import {
   isSuperAdminRole,
   isSupportCoordinatorRole,
   isFieldOperationsCoordinatorRole,
+  isResearcherFieldCoordinatorRole,
 } from "@/lib/permissions";
 
 /** منسق إدارة العمل الميداني — بلاغات نظام FIELD_OPERATIONS */
@@ -10,6 +11,18 @@ export const FIELD_OPERATIONS_COORDINATOR = {
   name: "منسق إدارة العمل الميداني",
   email: "fieldops.coord@jcsc.gov.jo",
 } as const;
+
+/** مشرف الدعم الفني — بلاغات نظام الباحث فنية (FIELD) بغض النظر عن المحافظة */
+export const RESEARCHER_FIELD_COORDINATOR = {
+  name: "مشرف الدعم الفني",
+  email: "sanaa@jcsc.gov.jo",
+} as const;
+
+export const RESEARCHER_SYSTEM_VALUES = [
+  "RESEARCHER_SYSTEM",
+  "نظام الباحث",
+  "researcher_system",
+] as const;
 
 /** منسقو الدعم الإقليميون — توجيه البلاغات حسب المحافظة */
 export const REGIONAL_COORDINATORS = [
@@ -67,6 +80,25 @@ export function isFieldOperationsAffectedSystem(affectedSystem?: string | null):
   );
 }
 
+export function isResearcherAffectedSystem(affectedSystem?: string | null): boolean {
+  if (!affectedSystem?.trim()) return false;
+  const value = affectedSystem.trim();
+  return (
+    RESEARCHER_SYSTEM_VALUES.includes(value as (typeof RESEARCHER_SYSTEM_VALUES)[number]) ||
+    value.toLowerCase() === "researcher_system"
+  );
+}
+
+export function isResearcherFieldIssue(item: {
+  affectedSystem?: string | null;
+  researcherIssueType?: string | null;
+}): boolean {
+  return (
+    isResearcherAffectedSystem(item.affectedSystem) &&
+    item.researcherIssueType === "FIELD"
+  );
+}
+
 export function getCoordinatorEmailForGovernorate(governorate: string): string | null {
   return GOVERNORATE_TO_EMAIL.get(governorate.trim()) ?? null;
 }
@@ -89,6 +121,18 @@ export async function resolveFieldOperationsCoordinator() {
   return user;
 }
 
+export async function resolveResearcherFieldCoordinator() {
+  const user = await prisma.user.findFirst({
+    where: {
+      email: RESEARCHER_FIELD_COORDINATOR.email,
+      role: "RESEARCHER_FIELD_COORDINATOR",
+      isActive: true,
+    },
+    select: { id: true, name: true, email: true },
+  });
+  return user;
+}
+
 export async function resolveCoordinatorForGovernorate(governorate: string) {
   const email = getCoordinatorEmailForGovernorate(governorate);
   if (!email) return null;
@@ -100,13 +144,17 @@ export async function resolveCoordinatorForGovernorate(governorate: string) {
   return user;
 }
 
-/** توجيه البلاغ: إدارة العمل الميداني → منسقها، غير ذلك → منسق المحافظة */
+/** توجيه البلاغ: FOM → منسقها، باحث+فني → مشرف الدعم الفني، باحث+تقني → منسق المحافظة، غير ذلك → منسق المحافظة */
 export async function resolveCoordinatorForReport(
   governorate: string,
-  affectedSystem?: string | null
+  affectedSystem?: string | null,
+  researcherIssueType?: string | null
 ) {
   if (isFieldOperationsAffectedSystem(affectedSystem)) {
     return resolveFieldOperationsCoordinator();
+  }
+  if (isResearcherAffectedSystem(affectedSystem) && researcherIssueType === "FIELD") {
+    return resolveResearcherFieldCoordinator();
   }
   return resolveCoordinatorForGovernorate(governorate);
 }
@@ -115,7 +163,8 @@ export function canViewRegionalCoordinatorUsers(role?: string | null): boolean {
   return (
     isSuperAdminRole(role as import("@/lib/types").UserRole) ||
     isSupportCoordinatorRole(role) ||
-    isFieldOperationsCoordinatorRole(role)
+    isFieldOperationsCoordinatorRole(role) ||
+    isResearcherFieldCoordinatorRole(role)
   );
 }
 
@@ -125,6 +174,7 @@ export async function isCaseAssignedToCoordinator(
     assignedCoordinatorId?: string | null;
     governorate: string;
     affectedSystem?: string | null;
+    researcherIssueType?: string | null;
   }
 ): Promise<boolean> {
   const coordinator = await prisma.user.findUnique({
@@ -134,6 +184,7 @@ export async function isCaseAssignedToCoordinator(
   if (!coordinator) return false;
 
   const isFieldOps = isFieldOperationsAffectedSystem(caseItem.affectedSystem);
+  const isResearcherField = isResearcherFieldIssue(caseItem);
 
   if (coordinator.role === "FIELD_OPERATIONS_COORDINATOR") {
     if (!isFieldOps) return false;
@@ -143,7 +194,15 @@ export async function isCaseAssignedToCoordinator(
     return true;
   }
 
-  if (isFieldOps) return false;
+  if (coordinator.role === "RESEARCHER_FIELD_COORDINATOR") {
+    if (!isResearcherField) return false;
+    if (caseItem.assignedCoordinatorId) {
+      return caseItem.assignedCoordinatorId === coordinatorId;
+    }
+    return true;
+  }
+
+  if (isFieldOps || isResearcherField) return false;
 
   if (caseItem.assignedCoordinatorId) {
     return caseItem.assignedCoordinatorId === coordinatorId;

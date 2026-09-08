@@ -16,6 +16,7 @@ const ACCOUNTS = {
   coordinatorIrbid: "manal.k@jcsc.gov.jo",
   coordinatorAmman: "razan.m@jcsc.gov.jo",
   fieldOpsCoordinator: "fieldops.coord@jcsc.gov.jo",
+  researcherFieldCoordinator: "sanaa@jcsc.gov.jo",
   developer: "hazem@jcsc.gov.jo",
   developerDb: "mohammad.h@jcsc.gov.jo",
 };
@@ -80,6 +81,20 @@ const ROLE_PAGES = [
   {
     name: "FIELD_OPS_COORDINATOR",
     email: ACCOUNTS.fieldOpsCoordinator,
+    pages: [
+      "/dashboard",
+      "/reports/my",
+      "/cases",
+      "/users",
+      "/notifications",
+      "/knowledge-base",
+      "/settings",
+    ],
+    forbidden: [],
+  },
+  {
+    name: "RESEARCHER_FIELD_COORDINATOR",
+    email: ACCOUNTS.researcherFieldCoordinator,
     pages: [
       "/dashboard",
       "/reports/my",
@@ -745,6 +760,138 @@ try {
   await logout(context, page);
 }
 
+// ── 5b. Researcher system — فني → مشرف الدعم الفني / تقني → منسق المحافظة ───
+console.log("\n▸ توجيه نظام الباحث (فني → مشرف الدعم الفني / تقني → منسق إربد)");
+const rsStamp = Date.now();
+const rsObservation = `[E2E-RS-${rsStamp}] بلاغ نظام الباحث — إربد`;
+
+try {
+  // A: Supervisor — researcher FIELD in Irbid → Sanaa only
+  await login(page, ACCOUNTS.supervisorIrbid);
+  const fieldCreate = await apiCall(page, "POST", "/api/reports", {
+    observation: `${rsObservation} — فني`,
+    governorate: "إربد",
+    enumeratorsAffected: 2,
+    submissionChannel: "app",
+    affectedSystem: "RESEARCHER_SYSTEM",
+    researcherIssueType: "FIELD",
+  });
+  const fieldReportId = fieldCreate.data?.id ?? null;
+  record(
+    "researcher-routing",
+    "1. بلاغ باحث+فني من إربد",
+    fieldCreate.status === 201 && !!fieldReportId,
+    fieldCreate.data?.number ?? JSON.stringify(fieldCreate.data)?.slice(0, 100)
+  );
+  await logout(context, page);
+
+  if (fieldReportId) {
+    await login(page, ACCOUNTS.researcherFieldCoordinator);
+    const sanaaCases = await apiCall(
+      page,
+      "GET",
+      `/api/cases?search=${encodeURIComponent(`[E2E-RS-${rsStamp}]`)}`
+    );
+    const sanaaList = Array.isArray(sanaaCases.data) ? sanaaCases.data : [];
+    const sanaaSees = sanaaList.some((c) => c.sourceReportId === fieldReportId);
+    record(
+      "researcher-routing",
+      "2. مشرف الدعم الفني يرى بلاغ باحث+فني",
+      sanaaCases.ok && sanaaSees,
+      sanaaSees ? sanaaList[0]?.number : `HTTP ${sanaaCases.status}`
+    );
+    await logout(context, page);
+
+    await login(page, ACCOUNTS.coordinatorIrbid);
+    const irbidRsCases = await apiCall(
+      page,
+      "GET",
+      `/api/cases?search=${encodeURIComponent(`[E2E-RS-${rsStamp}]`)}`
+    );
+    const irbidRsList = Array.isArray(irbidRsCases.data) ? irbidRsCases.data : [];
+    const irbidSeesField = irbidRsList.some((c) => c.sourceReportId === fieldReportId);
+    record(
+      "researcher-routing",
+      "3. منسق إربد لا يرى باحث+فني",
+      !irbidSeesField,
+      irbidSeesField ? "ظهر خطأً!" : "موجّه لمشرف الدعم الفني ✓"
+    );
+    await logout(context, page);
+  }
+
+  // B: Supervisor — researcher TECHNICAL in Irbid → Irbid coordinator
+  await login(page, ACCOUNTS.supervisorIrbid);
+  const techCreate = await apiCall(page, "POST", "/api/reports", {
+    observation: `${rsObservation} — تقني`,
+    governorate: "إربد",
+    enumeratorsAffected: 2,
+    submissionChannel: "app",
+    affectedSystem: "RESEARCHER_SYSTEM",
+    researcherIssueType: "TECHNICAL",
+  });
+  const techReportId = techCreate.data?.id ?? null;
+  record(
+    "researcher-routing",
+    "4. بلاغ باحث+تقني من إربد",
+    techCreate.status === 201 && !!techReportId,
+    techCreate.data?.number ?? JSON.stringify(techCreate.data)?.slice(0, 100)
+  );
+  await logout(context, page);
+
+  if (techReportId) {
+    await login(page, ACCOUNTS.coordinatorIrbid);
+    const irbidTechCases = await apiCall(
+      page,
+      "GET",
+      `/api/cases?search=${encodeURIComponent(`[E2E-RS-${rsStamp}]`)}`
+    );
+    const irbidTechList = Array.isArray(irbidTechCases.data) ? irbidTechCases.data : [];
+    const irbidSeesTech = irbidTechList.some((c) => c.sourceReportId === techReportId);
+    record(
+      "researcher-routing",
+      "5. منسق إربد يرى باحث+تقني",
+      irbidTechCases.ok && irbidSeesTech,
+      irbidSeesTech ? irbidTechList.find((c) => c.sourceReportId === techReportId)?.number : "لم تظهر"
+    );
+    await logout(context, page);
+
+    await login(page, ACCOUNTS.researcherFieldCoordinator);
+    const sanaaTechCases = await apiCall(
+      page,
+      "GET",
+      `/api/cases?search=${encodeURIComponent(`[E2E-RS-${rsStamp}]`)}`
+    );
+    const sanaaTechList = Array.isArray(sanaaTechCases.data) ? sanaaTechCases.data : [];
+    const sanaaSeesTech = sanaaTechList.some((c) => c.sourceReportId === techReportId);
+    record(
+      "researcher-routing",
+      "6. مشرف الدعم الفني لا يرى باحث+تقني",
+      !sanaaSeesTech,
+      sanaaSeesTech ? "ظهر خطأً!" : "موجّه لمنسق إربد ✓"
+    );
+    await logout(context, page);
+  }
+
+  // C: researcher without issue type should fail
+  await login(page, ACCOUNTS.supervisorIrbid);
+  const missingType = await apiCall(page, "POST", "/api/reports", {
+    observation: `${rsObservation} — بدون نوع`,
+    governorate: "إربد",
+    enumeratorsAffected: 1,
+    affectedSystem: "RESEARCHER_SYSTEM",
+  });
+  record(
+    "researcher-routing",
+    "7. رفض باحث بدون تقني/فني",
+    missingType.status === 400,
+    `HTTP ${missingType.status}`
+  );
+  await logout(context, page);
+} catch (e) {
+  record("researcher-routing", "توجيه نظام الباحث", false, e.message);
+  await logout(context, page);
+}
+
 // ── 6. UI — create report page loads for supervisor ───────────────
 console.log("\n▸ واجهة — صفحة إنشاء بلاغ");
 try {
@@ -792,6 +939,7 @@ for (const [label, email] of [
   ["COORDINATOR_IRBID", ACCOUNTS.coordinatorIrbid],
   ["COORDINATOR_AMMAN", ACCOUNTS.coordinatorAmman],
   ["FIELD_OPS_COORDINATOR", ACCOUNTS.fieldOpsCoordinator],
+  ["RESEARCHER_FIELD_COORDINATOR", ACCOUNTS.researcherFieldCoordinator],
 ]) {
   try {
     await login(page, email);

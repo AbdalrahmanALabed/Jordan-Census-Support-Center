@@ -10,6 +10,7 @@ export const TEST_PASSWORDS = {
   "aman.h@jcsc.gov.jo": "Jcsc@Amn2026hL9c",
   "sawsan@jcsc.gov.jo": "Jcsc@Sws2026nP7x",
   "fieldops.coord@jcsc.gov.jo": "Jcsc@Fld2026oR3m",
+  "sanaa@jcsc.gov.jo": "Jcsc@Sna2026aF6k",
   "supervisor@jcsc.gov.jo": "Jcsc@Spr2026rB8k",
   "supervisor.aqaba@jcsc.gov.jo": "Jcsc@SpA2026qD4n",
   "hazem@jcsc.gov.jo": "Jcsc@Hzm2026zG6p",

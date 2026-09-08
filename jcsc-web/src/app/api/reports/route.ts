@@ -11,7 +11,7 @@ import {
 import { prisma } from "@/lib/db";
 import { notifyCoordinator, notifySuperAdmins } from "@/lib/notifications/server";
 import { createCaseFromReport } from "@/lib/cases/server";
-import { resolveCoordinatorForReport, isFieldOperationsAffectedSystem } from "@/lib/coordinator-routing";
+import { resolveCoordinatorForReport, isFieldOperationsAffectedSystem, isResearcherAffectedSystem } from "@/lib/coordinator-routing";
 import { filterItemsByFieldOpsVisibility } from "@/lib/field-ops-visibility";
 
 export async function GET(req: NextRequest) {
@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
     enumeratorsAffected = 1,
     submissionChannel = "app",
     affectedSystem = "FIELD_OPERATIONS",
+    researcherIssueType,
     attachmentNames = [],
     supervisorId,
   } = body;
@@ -106,6 +107,18 @@ export async function POST(req: NextRequest) {
   const validSystems = ["CALL_CENTER", "SELF_ENUMERATION", "RESEARCHER_SYSTEM", "FIELD_OPERATIONS"];
   const system = validSystems.includes(affectedSystem) ? affectedSystem : "FIELD_OPERATIONS";
 
+  const validIssueTypes = ["TECHNICAL", "FIELD"];
+  let issueType: "TECHNICAL" | "FIELD" | null = null;
+  if (isResearcherAffectedSystem(system)) {
+    if (!researcherIssueType || !validIssueTypes.includes(researcherIssueType)) {
+      return NextResponse.json(
+        { error: "يجب تحديد نوع المشكلة (تقني أو فني) لنظام الباحث" },
+        { status: 400 }
+      );
+    }
+    issueType = researcherIssueType as "TECHNICAL" | "FIELD";
+  }
+
   const routing = await recommendRouting(observation);
   const number = await generateReportNumber(system);
 
@@ -123,6 +136,7 @@ export async function POST(req: NextRequest) {
       supervisorId: supervisorId || session!.user.id,
       submissionChannel,
       affectedSystem: system,
+      researcherIssueType: issueType,
       recommendedTeam: routing.team,
       recommendedPriority: routing.priority,
       status,
@@ -155,14 +169,17 @@ export async function POST(req: NextRequest) {
       affectedUsers: Math.max(1, Number(enumeratorsAffected) || 1),
       createdById: supervisorId || session!.user.id,
       affectedSystem: system,
+      researcherIssueType: issueType ?? undefined,
     });
 
-    const coordinator = await resolveCoordinatorForReport(governorate, system);
+    const coordinator = await resolveCoordinatorForReport(governorate, system, issueType);
     if (coordinator) {
       await notifyCoordinator(coordinator.id, {
         title: isFieldOperationsAffectedSystem(system)
           ? "بلاغ جديد — إدارة العمل الميداني"
-          : "بلاغ جديد — محافظتك",
+          : issueType === "FIELD"
+            ? "بلاغ جديد — نظام الباحث (فني)"
+            : "بلاغ جديد — محافظتك",
         message: `${number} — ${governorate} — ${enumeratorsAffected} مستخدم متأثر`,
         type: "report_new",
         entityType: "Report",

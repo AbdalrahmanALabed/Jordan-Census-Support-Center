@@ -193,6 +193,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   SUPPORT_SUPERVISOR: "مشرف الدعم",
   SUPPORT_COORDINATOR: "منسق الدعم",
   FIELD_OPERATIONS_COORDINATOR: "منسق إدارة العمل الميداني",
+  RESEARCHER_FIELD_COORDINATOR: "مشرف الدعم الفني",
   SUPPORT_MANAGER: "مدير الدعم",
   SUPPORT_L1: "دعم L1",
   SUPPORT_L2: "دعم L2",
@@ -221,6 +222,7 @@ export const CORE_ROLES: UserRole[] = [
   "SUPPORT_SUPERVISOR",
   "SUPPORT_COORDINATOR",
   "FIELD_OPERATIONS_COORDINATOR",
+  "RESEARCHER_FIELD_COORDINATOR",
   "SUPERVISOR",
   "DEVELOPER",
 ];
@@ -249,6 +251,13 @@ export const PRIORITY_LABELS: Record<TicketPriority, string> = {
   MEDIUM: "متوسطة",
   LOW: "منخفضة",
 };
+
+export type ResearcherIssueType = "TECHNICAL" | "FIELD";
+
+export const RESEARCHER_ISSUE_TYPES: { value: ResearcherIssueType; label: string }[] = [
+  { value: "TECHNICAL", label: "تقني" },
+  { value: "FIELD", label: "فني" },
+];
 
 export const RESEARCHER_STATUS_LABELS: Record<ResearcherStatus, string> = {
   ACTIVE: "نشط",

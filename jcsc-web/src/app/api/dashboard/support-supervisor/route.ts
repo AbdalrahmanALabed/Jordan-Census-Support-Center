@@ -26,12 +26,12 @@ export async function GET() {
 
   const managerId = session!.user.id;
   const team = await getManagedUsers(managerId);
-  const teamIds = team.map((u) => u.id);
 
-  const rawCases =
-    teamIds.length > 0
-      ? await listCases({ createdByIds: teamIds, limit: 200 })
-      : [];
+  const rawCases = await listCases({
+    managedByManagerId: managerId,
+    limit: 200,
+    role: session!.user.role,
+  });
 
   const visibleRawCases = filterItemsByFieldOpsVisibility(rawCases, session!.user.role);
   const cases = visibleRawCases.map(mapCaseToClient);

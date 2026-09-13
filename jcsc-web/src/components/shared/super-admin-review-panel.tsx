@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
@@ -15,9 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SpecialtyAssignSelect } from "@/components/shared/specialty-assign-select";
 import { PrioritySeverityFields } from "@/components/shared/priority-severity-fields";
-import { NotProblemReasonPicker } from "@/components/shared/not-problem-reason-picker";
+import { NotProblemCommentForm } from "@/components/shared/not-problem-comment-form";
 import { WorkflowStepCard } from "@/components/shared/ops-ui";
-import { CLASSIFICATION_LABELS, type FieldReport } from "@/lib/reports";
+import type { FieldReport } from "@/lib/reports";
 import {
   confirmReportAsProblemWithAssign,
   markReportAsNotProblem,
@@ -27,10 +27,7 @@ import { reviewCaseAsProblem, reviewCaseNotProblem } from "@/lib/services/cases"
 import type { Case } from "@/lib/cases";
 import type { CaseSeverity } from "@/lib/cases/types";
 import { CENSUS_SYSTEM_LABELS, type CensusSystem, type IssuePriority } from "@/lib/types";
-import {
-  buildNotProblemReason,
-  type NotAppTechnicalIssueId,
-} from "@/lib/case-classification";
+import { buildSimpleNotProblemReason } from "@/lib/case-classification";
 import { useToast } from "@/components/ui/toast";
 
 type ReviewMode = "choose" | "problem" | "not_problem";
@@ -39,6 +36,7 @@ interface SuperAdminReviewPanelProps {
   report?: FieldReport;
   caseItem?: Case;
   compact?: boolean;
+  canProcess?: boolean;
   onSuccess?: () => void;
 }
 
@@ -51,6 +49,7 @@ export function SuperAdminReviewPanel({
   report,
   caseItem,
   compact = false,
+  canProcess = true,
   onSuccess,
 }: SuperAdminReviewPanelProps) {
   const queryClient = useQueryClient();
@@ -59,7 +58,6 @@ export function SuperAdminReviewPanel({
   const [assignedDeveloperId, setAssignedDeveloperId] = useState("");
   const [priority, setPriority] = useState<IssuePriority>("MEDIUM");
   const [severity, setSeverity] = useState<CaseSeverity>("MEDIUM");
-  const [notProblemIssueId, setNotProblemIssueId] = useState<NotAppTechnicalIssueId>("MDM");
   const [note, setNote] = useState("");
 
   const description = report?.observation ?? caseItem?.description ?? "";
@@ -72,12 +70,6 @@ export function SuperAdminReviewPanel({
   });
 
   const hasSimilar = (similar?.length ?? 0) > 0;
-
-  useEffect(() => {
-    if (hasSimilar && mode === "not_problem") {
-      setNotProblemIssueId("DUPLICATE");
-    }
-  }, [hasSimilar, mode]);
 
   const invalidateAll = () => {
     if (report) {
@@ -117,7 +109,7 @@ export function SuperAdminReviewPanel({
 
   const notProblemMutation = useMutation({
     mutationFn: async () => {
-      const { classification, reason } = buildNotProblemReason(notProblemIssueId, note);
+      const { classification, reason } = buildSimpleNotProblemReason(note);
       if (caseItem) {
         return reviewCaseNotProblem(caseItem.id, classification, reason);
       }
@@ -145,7 +137,6 @@ export function SuperAdminReviewPanel({
 
   if (!canReviewReport && !canReviewCase) return null;
 
-  const { classification } = buildNotProblemReason(notProblemIssueId, note);
   const contextSystem =
     systemLabel(report?.affectedSystem) ?? caseItem?.affectedSystem ?? null;
 
@@ -193,13 +184,7 @@ export function SuperAdminReviewPanel({
   );
 
   const notProblemForm = (
-    <NotProblemReasonPicker
-      value={notProblemIssueId}
-      onChange={setNotProblemIssueId}
-      note={note}
-      onNoteChange={setNote}
-      highlightDuplicate={hasSimilar}
-    />
+    <NotProblemCommentForm note={note} onNoteChange={setNote} />
   );
 
   if (compact) {
@@ -219,7 +204,7 @@ export function SuperAdminReviewPanel({
           <div className="space-y-2 p-3 border-2 rounded-xl bg-card">
             <SpecialtyAssignSelect value={assignedDeveloperId} onValueChange={setAssignedDeveloperId} triggerClassName="h-9" />
             <div className="flex gap-2">
-              <Button size="sm" className="flex-1" disabled={!assignedDeveloperId || problemMutation.isPending} onClick={() => problemMutation.mutate()}>تأكيد</Button>
+              <Button size="sm" className="flex-1" disabled={!canProcess || !assignedDeveloperId || problemMutation.isPending} onClick={() => problemMutation.mutate()}>تأكيد</Button>
               <Button size="sm" variant="ghost" onClick={() => setMode("choose")}>إلغاء</Button>
             </div>
           </div>
@@ -228,7 +213,7 @@ export function SuperAdminReviewPanel({
           <div className="space-y-3 p-3 border-2 rounded-xl bg-card max-h-[70vh] overflow-y-auto">
             {notProblemForm}
             <div className="flex gap-2">
-              <Button size="sm" variant="destructive" className="flex-1" disabled={notProblemMutation.isPending} onClick={() => notProblemMutation.mutate()}>تأكيد</Button>
+              <Button size="sm" variant="destructive" className="flex-1" disabled={!canProcess || notProblemMutation.isPending} onClick={() => notProblemMutation.mutate()}>تأكيد</Button>
               <Button size="sm" variant="ghost" onClick={() => setMode("choose")}>إلغاء</Button>
             </div>
           </div>
@@ -241,7 +226,7 @@ export function SuperAdminReviewPanel({
     <WorkflowStepCard
       step={1}
       title="مراجعة البلاغ"
-      subtitle="قبول كمشكلة تقنية مع إسناد — أو رفض مع تحديد العطل الفني (خارج التطبيق)"
+      subtitle="قبول كمشكلة تقنية مع إسناد — أو رفض كـ «ليست مشكلة»"
       icon={AlertTriangle}
       tone="amber"
     >
@@ -265,7 +250,7 @@ export function SuperAdminReviewPanel({
           >
             <XCircle className="h-10 w-10 text-red-600" />
             <span className="text-lg font-black text-red-800 dark:text-red-200">رفض — ليست مشكلة في التطبيق</span>
-            <span className="text-xs text-muted-foreground text-center">MDM، شبكة، جهاز، تدريب...</span>
+            <span className="text-xs text-muted-foreground text-center">إغلاق — تعليق اختياري</span>
           </button>
         </div>
       )}
@@ -290,7 +275,7 @@ export function SuperAdminReviewPanel({
           <div className="flex gap-3">
             <Button
               className="flex-1 h-12 font-black"
-              disabled={!assignedDeveloperId || problemMutation.isPending}
+              disabled={!canProcess || !assignedDeveloperId || problemMutation.isPending}
               onClick={() => problemMutation.mutate()}
             >
               {problemMutation.isPending ? "جاري الحفظ..." : "تأكيد القبول والإسناد"}
@@ -305,14 +290,11 @@ export function SuperAdminReviewPanel({
       {mode === "not_problem" && (
         <div className="space-y-5 animate-in fade-in slide-in-from-top-2 rounded-2xl border-2 p-6 bg-card">
           {notProblemForm}
-          <p className="text-xs text-muted-foreground">
-            التصنيف في النظام: <strong>{CLASSIFICATION_LABELS[classification]}</strong>
-          </p>
           <div className="flex gap-3">
             <Button
               variant="destructive"
               className="flex-1 h-12 font-black"
-              disabled={notProblemMutation.isPending}
+              disabled={!canProcess || notProblemMutation.isPending}
               onClick={() => notProblemMutation.mutate()}
             >
               {notProblemMutation.isPending ? "جاري الحفظ..." : "تأكيد — ليست مشكلة في التطبيق"}

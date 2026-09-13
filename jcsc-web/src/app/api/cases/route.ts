@@ -5,9 +5,7 @@ import {
   isSuperAdminRole,
   isSupportSupervisorRole,
   isSupportCoordinatorRole,
-  isInfrastructureSupervisorRole,
 } from "@/lib/permissions";
-import { getManagedUserIds } from "@/lib/support-supervisor/server";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { sendNotification } from "@/lib/notifications/server";
@@ -67,19 +65,16 @@ export async function GET(req: NextRequest) {
   const createdById =
     (!canViewAll && canViewOwn) || mineOnly ? session!.user.id : undefined;
 
-  let createdByIds: string[] | undefined;
+  let managedByManagerId: string | undefined;
   let assignedCoordinatorId: string | undefined;
 
   if (isSupportSupervisorRole(session!.user.role)) {
-    createdByIds = await getManagedUserIds(session!.user.id);
-    if (createdByIds.length === 0) {
-      return NextResponse.json([]);
-    }
+    managedByManagerId = session!.user.id;
   }
 
+  // منسقو المحافظات فقط: الحالات المسندة إليهم صراحة
   if (
-    (isSupportCoordinatorRole(session!.user.role) ||
-      isInfrastructureSupervisorRole(session!.user.role)) &&
+    session!.user.role === "SUPPORT_COORDINATOR" &&
     !isSuperAdminRole(session!.user.role as import("@prisma/client").UserRole)
   ) {
     assignedCoordinatorId = session!.user.id;
@@ -90,10 +85,11 @@ export async function GET(req: NextRequest) {
     caseType,
     status,
     simpleStatus: simpleStatus && simpleStatus !== "ALL" ? simpleStatus : undefined,
-    createdById: createdByIds ? undefined : createdById,
-    createdByIds,
+    createdById: managedByManagerId ? undefined : createdById,
+    managedByManagerId,
     assignedCoordinatorId,
     limit: limit && limit > 0 ? limit : undefined,
+    role: session!.user.role,
   });
 
   const visibleCases = filterItemsByFieldOpsVisibility(cases, session!.user.role, {

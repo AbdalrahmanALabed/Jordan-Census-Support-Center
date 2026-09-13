@@ -189,6 +189,18 @@ export function getNotAppIssueById(id: NotAppTechnicalIssueId) {
   return NOT_APP_TECHNICAL_ISSUE_OPTIONS.find((o) => o.id === id);
 }
 
+/** «ليست مشكلة» — تعليق اختياري فقط */
+export function buildSimpleNotProblemReason(extraNote?: string): {
+  classification: ReportClassification;
+  reason: string;
+} {
+  const note = extraNote?.trim();
+  return {
+    classification: "USER_MISTAKE",
+    reason: note ? `ليست مشكلة — ${note}` : "ليست مشكلة — لا تحتاج متابعة",
+  };
+}
+
 /** نص السبب المخزّن في السجل والإشعار */
 export function buildNotProblemReason(
   issueId: NotAppTechnicalIssueId,
@@ -220,6 +232,22 @@ export const QUICK_CLASSIFY_NOT_PROBLEM: Partial<
     reason: "تحسينات — ليست مشكلة تقنية",
   },
 };
+
+/** «ليست مشكلة» حسب نوع الحالة المختار + تعليق اختياري */
+export function buildCaseTypeNotProblemReason(
+  caseType: CaseType,
+  extraNote?: string
+): { classification: ReportClassification; reason: string } {
+  const quick = QUICK_CLASSIFY_NOT_PROBLEM[caseType];
+  if (quick) {
+    const note = extraNote?.trim();
+    return {
+      classification: quick.classification,
+      reason: note ? `${quick.reason} — ${note}` : quick.reason,
+    };
+  }
+  return buildSimpleNotProblemReason(extraNote);
+}
 
 /** اقتراح افتراضي عند اختيار نوع غير BUG في المعالجة السريعة */
 export function suggestNotAppIssueForCaseType(type: CaseType): NotAppTechnicalIssueId {

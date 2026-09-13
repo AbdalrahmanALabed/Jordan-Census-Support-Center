@@ -1,33 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftRight, CheckCircle2, UserRound } from "lucide-react";
+import { ArrowLeftRight, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { WorkflowStepCard } from "@/components/shared/ops-ui";
 import { getCaseTransferPeers, transferCaseCoordinator } from "@/lib/services/cases";
+import type { CaseTransferPeer } from "@/lib/services/cases";
 import type { Case } from "@/lib/cases";
 import { useToast } from "@/components/ui/toast";
-import { cn } from "@/lib/utils";
 
 interface CoordinatorTransferPanelProps {
   caseItem: Case;
   onSuccess?: () => void;
 }
 
-function peerDisplayName(peer: {
-  name?: string | null;
-  email?: string | null;
-  label?: string | null;
-  roleLabel?: string | null;
-  role?: string | null;
-}) {
+const ROLE_GROUP_ORDER: { role: string; label: string }[] = [
+  { role: "SUPPORT_COORDINATOR", label: "منسقو الدعم الإقليميون" },
+  { role: "FIELD_OPERATIONS_COORDINATOR", label: "منسق إدارة العمل الميداني" },
+  { role: "RESEARCHER_FIELD_COORDINATOR", label: "مشرف الدعم الفني" },
+  { role: "INFRASTRUCTURE_SUPERVISOR", label: "مشرف البنية التحتية" },
+  { role: "SUPPORT_SUPERVISOR", label: "مشرف الدعم" },
+];
+
+function peerOptionLabel(peer: CaseTransferPeer): string {
   const name = peer.name?.trim() || peer.email?.trim() || "مستخدم";
-  const subtitle =
-    peer.label?.trim() ||
-    [peer.roleLabel || peer.role, peer.email].filter(Boolean).join(" · ");
-  return { name, subtitle };
+  const detail = peer.label?.trim() || peer.roleLabel || "";
+  if (!detail || detail.startsWith(name)) return name;
+  return `${name} — ${detail.replace(`${name} — `, "")}`;
+}
+
+function peerStatusSuffix(peer: CaseTransferPeer): string | null {
+  if (peer.isCurrentAssignee) return " (المسند حالياً)";
+  if (peer.isCurrentUser) return " (أنت)";
+  return null;
 }
 
 export function CoordinatorTransferPanel({
@@ -45,6 +61,15 @@ export function CoordinatorTransferPanel({
     enabled: caseItem.status === "OPEN",
   });
 
+  const groupedPeers = useMemo(() => {
+    return ROLE_GROUP_ORDER.map(({ role, label }) => ({
+      role,
+      label,
+      items: peers.filter((p) => p.role === role),
+    })).filter((g) => g.items.length > 0);
+  }, [peers]);
+
+  const selectablePeers = peers.filter((peer) => peer.canSelect !== false);
   const selectedPeer = peers.find((peer) => peer.id === targetId);
 
   const mutation = useMutation({
@@ -73,7 +98,7 @@ export function CoordinatorTransferPanel({
     <WorkflowStepCard
       step={0}
       title="تحويل بين المنسقين/المشرفين"
-      subtitle="حوّل الحالة لمنسق أو مشرف دعم آخر ضمن فريق القيادة فقط"
+      subtitle="اختر من القائمة المنسدلة ثم اكتب سبب التحويل"
       icon={ArrowLeftRight}
       tone="violet"
     >
@@ -94,81 +119,78 @@ export function CoordinatorTransferPanel({
         </p>
       ) : peers.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          لا يوجد منسق/مشرف متاح لهذا النوع من البلاغات.
+          لا يوجد منسق/مشرف متاح للتحويل.
         </p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="space-y-2">
-            <p className="text-sm font-black">تحويل إلى ({peers.length})</p>
-            <div className="grid gap-2" role="listbox" aria-label="اختر منسقاً للتحويل">
-              {peers.map((peer) => {
-                const active = targetId === peer.id;
-                const { name, subtitle } = peerDisplayName(peer);
-                return (
-                  <button
-                    key={peer.id}
-                    type="button"
-                    role="option"
-                    aria-selected={active}
-                    onClick={() => setTargetId(peer.id)}
-                    className={cn(
-                      "flex w-full items-start gap-3 rounded-xl border-2 p-3 text-start transition-all",
-                      active
-                        ? "border-primary bg-primary/10 shadow-md ring-2 ring-primary/20"
-                        : "border-border bg-card hover:border-primary/35 hover:bg-muted/40"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2",
-                        active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-muted-foreground/30 bg-muted text-muted-foreground"
-                      )}
-                      aria-hidden
-                    >
-                      {active ? (
-                        <CheckCircle2 className="h-4 w-4" />
-                      ) : (
-                        <UserRound className="h-4 w-4" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-base font-black leading-snug text-foreground">
-                        {name}
-                      </p>
-                      {subtitle && subtitle !== name && (
-                        <p className="mt-1 text-xs font-medium text-muted-foreground leading-relaxed">
-                          {subtitle}
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <label className="text-sm font-black">تحويل إلى</label>
+            <Select value={targetId || undefined} onValueChange={setTargetId}>
+              <SelectTrigger className="h-12 border-2 text-base font-bold text-start">
+                <SelectValue placeholder={`اختر منسقاً أو مشرفاً (${selectablePeers.length} متاح)`} />
+              </SelectTrigger>
+              <SelectContent dir="rtl" align="start" position="popper" className="z-[200] max-h-72">
+                {groupedPeers.map((group) => (
+                  <SelectGroup key={group.role}>
+                    <SelectLabel className="font-black text-primary px-2 py-2">
+                      {group.label}
+                    </SelectLabel>
+                    {group.items.map((peer) => {
+                      const canSelect = peer.canSelect !== false;
+                      const suffix = peerStatusSuffix(peer);
+                      return (
+                        <SelectItem
+                          key={peer.id}
+                          value={peer.id}
+                          disabled={!canSelect}
+                          className="text-base py-3 cursor-pointer"
+                        >
+                          {peerOptionLabel(peer)}
+                          {suffix}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {peers.length} منسق/مشرف · {selectablePeers.length} متاح للتحويل
+            </p>
           </div>
 
-          {selectedPeer && (
-            <p className="text-sm font-bold text-primary">
-              المختار: {peerDisplayName(selectedPeer).name}
-            </p>
+          {selectedPeer && selectedPeer.canSelect !== false && (
+            <div className="flex items-start gap-3 rounded-xl border-2 border-primary/20 bg-primary/5 p-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <UserRound className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-black text-sm">{selectedPeer.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {selectedPeer.label || selectedPeer.roleLabel}
+                </p>
+              </div>
+            </div>
           )}
 
-          <Textarea
-            placeholder="سبب التحويل..."
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={2}
-            className="text-base"
-          />
+          <div className="space-y-2">
+            <label className="text-sm font-black">سبب التحويل</label>
+            <Textarea
+              placeholder="اكتب سبب تحويل البلاغ..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              className="text-base border-2"
+            />
+          </div>
+
           <Button
             className="w-full h-11 gap-2 font-bold"
             disabled={!targetId || !reason.trim() || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
             <ArrowLeftRight className="h-4 w-4" />
-            تحويل الحالة
+            {mutation.isPending ? "جاري التحويل..." : "تحويل الحالة"}
           </Button>
         </div>
       )}

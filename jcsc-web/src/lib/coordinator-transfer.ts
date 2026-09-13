@@ -1,9 +1,5 @@
 import { prisma } from "@/lib/db";
-import {
-  getGovernoratesForCoordinatorEmail,
-  isCaseAssignedToCoordinator,
-} from "@/lib/coordinator-routing";
-import { supportSupervisorCanViewCase } from "@/lib/field-ops-visibility";
+import { getGovernoratesForCoordinatorEmail } from "@/lib/coordinator-routing";
 import { ROLE_LABELS, type UserRole } from "@/lib/types";
 
 /** منسقو الدعم + مشرفو الدعم — تحويل الحالات بينهم فقط */
@@ -30,21 +26,16 @@ type CoordinatorCase = {
   status?: string | null;
 };
 
+/** أي منسق/مشرف نشط ضمن فريق القيادة يمكنه استلام التحويل */
 export async function canUserReceiveCoordinatorCase(
   userId: string,
-  caseItem: CoordinatorCase
+  _caseItem?: CoordinatorCase
 ): Promise<boolean> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, role: true, isActive: true },
   });
-  if (!user?.isActive || !isLeadTransferRole(user.role)) return false;
-
-  if (user.role === "SUPPORT_SUPERVISOR") {
-    return supportSupervisorCanViewCase(caseItem, user.role);
-  }
-
-  return isCaseAssignedToCoordinator(userId, caseItem);
+  return Boolean(user?.isActive && isLeadTransferRole(user.role));
 }
 
 export function formatTransferPeerLabel(user: {
@@ -81,19 +72,12 @@ export function formatTransferPeerLabel(user: {
   return `${user.name} — ${roleLabel}`;
 }
 
-export async function listCoordinatorTransferPeers(
-  caseItem: CoordinatorCase,
-  excludeUserId?: string | null
-) {
-  const excludeIds = new Set<string>();
-  if (excludeUserId) excludeIds.add(excludeUserId);
-  if (caseItem.assignedCoordinatorId) excludeIds.add(caseItem.assignedCoordinatorId);
-
-  const users = await prisma.user.findMany({
+/** جميع المنسقين/المشرفين النشطين — بدون إخفاء أي اسم */
+export async function listCoordinatorTransferPeers(_caseItem?: CoordinatorCase) {
+  return prisma.user.findMany({
     where: {
       role: { in: [...LEAD_TRANSFER_ROLES] },
       isActive: true,
-      ...(excludeIds.size > 0 ? { id: { notIn: [...excludeIds] } } : {}),
     },
     select: {
       id: true,
@@ -103,14 +87,16 @@ export async function listCoordinatorTransferPeers(
       team: true,
       governorate: true,
     },
-    orderBy: { name: "asc" },
+    orderBy: [{ role: "asc" }, { name: "asc" }],
   });
+}
 
-  const eligible: typeof users = [];
-  for (const user of users) {
-    if (await canUserReceiveCoordinatorCase(user.id, caseItem)) {
-      eligible.push(user);
-    }
-  }
-  return eligible;
+export function isTransferPeerSelectable(
+  peerId: string,
+  viewerId: string,
+  assignedCoordinatorId?: string | null
+): boolean {
+  if (peerId === viewerId) return false;
+  if (assignedCoordinatorId && peerId === assignedCoordinatorId) return false;
+  return true;
 }

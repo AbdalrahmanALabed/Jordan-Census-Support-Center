@@ -21,12 +21,9 @@ import {
 } from "@/components/ui/select";
 import { SpecialtyAssignSelect } from "@/components/shared/specialty-assign-select";
 import { PrioritySeverityFields } from "@/components/shared/priority-severity-fields";
-import { NotProblemReasonPicker } from "@/components/shared/not-problem-reason-picker";
+import { NotProblemCommentForm } from "@/components/shared/not-problem-comment-form";
 import { ReportDetailsPanel } from "@/components/reports/report-details-panel";
-import {
-  buildNotProblemReason,
-  type NotAppTechnicalIssueId,
-} from "@/lib/case-classification";
+import { buildSimpleNotProblemReason } from "@/lib/case-classification";
 import {
   CENSUS_SYSTEMS,
   CENSUS_SYSTEM_LABELS,
@@ -77,7 +74,6 @@ export function ReportClassifyDialog({
   const [assignedDeveloperId, setAssignedDeveloperId] = useState("");
   const [priority, setPriority] = useState<IssuePriority>("MEDIUM");
   const [severity, setSeverity] = useState<CaseSeverity>("MEDIUM");
-  const [notProblemIssueId, setNotProblemIssueId] = useState<NotAppTechnicalIssueId>("MDM");
   const [notProblemNote, setNotProblemNote] = useState("");
 
   useEffect(() => {
@@ -88,7 +84,6 @@ export function ReportClassifyDialog({
     setAssignedDeveloperId("");
     setPriority("MEDIUM");
     setSeverity("MEDIUM");
-    setNotProblemIssueId("MDM");
     setNotProblemNote("");
   }, [open, report.id, report.observation, report.affectedSystem, startAtReview]);
 
@@ -115,7 +110,7 @@ export function ReportClassifyDialog({
 
   const notProblemMutation = useMutation({
     mutationFn: () => {
-      const { classification, reason } = buildNotProblemReason(notProblemIssueId, notProblemNote);
+      const { classification, reason } = buildSimpleNotProblemReason(notProblemNote);
       return markReportAsNotProblem(report.id, "", reason, classification);
     },
     onSuccess: () => {
@@ -137,7 +132,7 @@ export function ReportClassifyDialog({
     review: "راجع تفاصيل البلاغ ثم قرّر الإجراء المناسب",
     choose: "هل هذا عطل تقني (BUG) أم ليس مشكلة في النظام؟",
     bug: "عدّل التفاصيل إن لزم، ثم حدّد الأولوية والخطورة واسند للمسؤول",
-    not_problem: "اختر العطل الفني — خارج نطاق التطبيق (MDM، شبكة، جهاز...)",
+    not_problem: "أضف تعليقاً اختيارياً ثم أكّد الإغلاق",
   };
 
   return (
@@ -203,7 +198,7 @@ export function ReportClassifyDialog({
                 <XCircle className="h-9 w-9 text-red-600 shrink-0" />
                 <span className="font-black text-red-800 dark:text-red-200 text-base">ليست مشكلة</span>
                 <span className="text-xs text-muted-foreground leading-relaxed px-2">
-                  MDM، شبكة، جهاز، تدريب...
+                  إغلاق البلاغ — تعليق اختياري
                 </span>
               </button>
             </div>
@@ -278,12 +273,7 @@ export function ReportClassifyDialog({
 
         {step === "not_problem" && (
           <div className="space-y-4">
-            <NotProblemReasonPicker
-              value={notProblemIssueId}
-              onChange={setNotProblemIssueId}
-              note={notProblemNote}
-              onNoteChange={setNotProblemNote}
-            />
+            <NotProblemCommentForm note={notProblemNote} onNoteChange={setNotProblemNote} />
             <div className="flex flex-col-reverse sm:flex-row gap-2 pt-1 sticky bottom-0 bg-background/95 pb-1">
               <Button variant="outline" className="sm:w-auto" onClick={() => setStep("choose")}>
                 <ArrowRight className="h-4 w-4" />

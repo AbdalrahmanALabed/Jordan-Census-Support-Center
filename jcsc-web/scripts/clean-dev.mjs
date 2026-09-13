@@ -37,8 +37,8 @@ if (process.platform === "win32") {
     }
   };
 
-  for (const port of [3000, 3001, 3002]) freePort(port);
-  console.log("Freed ports 3000–3002");
+  for (const port of [3000, 3001, 3002, 3026]) freePort(port);
+  console.log("Freed ports 3000–3002 and 3026 (PM2 production)");
 } else {
   try {
     execSync('lsof -ti:3000,3001,3002 | xargs -r kill -9', { stdio: "inherit" });

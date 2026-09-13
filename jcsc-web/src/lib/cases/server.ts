@@ -14,7 +14,11 @@ import { caseStatusesForSimple, caseCanClassifyAndAssign } from "@/lib/cases/typ
 import { fieldOpsPrismaFilter } from "@/lib/field-ops-visibility";
 import { logCaseStatusChange, logCaseAssignment, logCaseReassignment, logCaseTimelineEvent, appendTimelineMeta, timelineRoleLabel } from "@/lib/cases/timeline-log";
 import { generatePrefixedTicketNumber } from "@/lib/ticket-numbers";
-import { resolveCoordinatorForReport } from "@/lib/coordinator-routing";
+import {
+  isInfrastructureAffectedSystem,
+  resolveCoordinatorForReport,
+} from "@/lib/coordinator-routing";
+import { censusSystemToLabel, normalizeCensusSystem } from "@/lib/types";
 
 const caseInclude = {
   createdBy: true,
@@ -214,12 +218,22 @@ export async function listCases(filters?: {
   simpleStatus?: SimpleCaseStatus | "ALL";
   createdById?: string;
   createdByIds?: string[];
+  /** حالات أنشأها أعضاء فريق مشرف الدعم — بدون IN ضخم */
+  managedByManagerId?: string;
   assignedCoordinatorId?: string;
   limit?: number;
+  role?: string | null;
 }) {
   const where: Prisma.CaseWhereInput = {};
 
-  if (filters?.createdByIds?.length) {
+  const visibilityWhere = fieldOpsPrismaFilter(filters?.role);
+  if (visibilityWhere) {
+    Object.assign(where, visibilityWhere);
+  }
+
+  if (filters?.managedByManagerId) {
+    where.createdBy = { directManagerId: filters.managedByManagerId };
+  } else if (filters?.createdByIds?.length) {
     where.createdById = { in: filters.createdByIds };
   } else if (filters?.createdById) {
     where.createdById = filters.createdById;
@@ -335,6 +349,7 @@ export async function createCaseManual(data: {
   createdById: string;
   assignedTeam?: string;
   developerId?: string;
+  researcherIssueType?: "TECHNICAL" | "FIELD" | null;
 }) {
   const number = await generateCaseNumber(data.affectedSystem);
   const governorate = data.governorate?.trim() || "غير محدد";
@@ -349,9 +364,15 @@ export async function createCaseManual(data: {
   const hasAssignee = Boolean(assignedDeveloperId || data.assignedTeam?.trim());
   const status = isBug && hasAssignee ? "IN_PROGRESS" : isBug ? "IN_PROGRESS" : "OPEN";
 
+  const systemKey = normalizeCensusSystem(data.affectedSystem);
+  const systemLabel = censusSystemToLabel(systemKey);
   const coordinator =
     status === "OPEN" && governorate !== "غير محدد"
-      ? await resolveCoordinatorForReport(governorate, data.affectedSystem)
+      ? await resolveCoordinatorForReport(
+          governorate,
+          systemKey,
+          data.researcherIssueType ?? undefined
+        )
       : null;
 
   const created = await prisma.case.create({
@@ -365,7 +386,7 @@ export async function createCaseManual(data: {
       severity: data.severity ?? "MEDIUM",
       affectedUsers: data.affectedUsers ?? 1,
       affectedGovernorates: JSON.stringify([governorate]),
-      affectedSystem: data.affectedSystem,
+      affectedSystem: systemLabel,
       assignedTeam: data.assignedTeam,
       ...(assignedDeveloperId ? assignDeveloperPatch(assignedDeveloperId) : {}),
       governorate,
@@ -995,17 +1016,9 @@ export async function createCaseFromReport(data: {
     include: { attachments: true },
   });
 
-  const number = await generateCaseNumber(data.affectedSystem);
-  const systemLabel =
-    data.affectedSystem === "CALL_CENTER"
-      ? "مركز اتصال"
-      : data.affectedSystem === "SELF_ENUMERATION"
-        ? "عد ذاتي"
-        : data.affectedSystem === "RESEARCHER_SYSTEM"
-          ? "نظام الباحث"
-          : data.affectedSystem === "FIELD_OPERATIONS"
-            ? "إدارة العمل الميداني"
-            : data.affectedSystem ?? "أخرى";
+  const systemKey = normalizeCensusSystem(data.affectedSystem);
+  const systemLabel = censusSystemToLabel(systemKey);
+  const number = await generateCaseNumber(systemKey);
 
   const creator = await prisma.user.findUnique({
     where: { id: data.createdById },
@@ -1017,7 +1030,7 @@ export async function createCaseFromReport(data: {
 
   const coordinator = await resolveCoordinatorForReport(
     data.governorate,
-    data.affectedSystem,
+    systemKey,
     data.researcherIssueType
   );
 
@@ -1067,7 +1080,9 @@ export async function createCaseFromReport(data: {
                   details:
                     data.researcherIssueType === "FIELD"
                       ? `${coordinator.name} — نظام الباحث (فني)`
-                      : `${coordinator.name} — ${data.governorate}`,
+                      : isInfrastructureAffectedSystem(systemKey)
+                        ? `${coordinator.name} — البنية التحتية`
+                        : `${coordinator.name} — ${data.governorate}`,
                   actorName: "النظام",
                 },
               ]

@@ -203,6 +203,12 @@ async function findCaseForReport(page, reportId, stamp) {
   return allList.find((c) => c.sourceReportId === reportId) ?? null;
 }
 
+async function acquireCaseLock(page, caseId) {
+  const lockToken = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const res = await apiCall(page, "POST", `/api/cases/${caseId}/lock`, { lockToken });
+  return res.ok ? lockToken : null;
+}
+
 async function apiCall(page, method, path, body) {
   const fullPath = path.startsWith(BP) ? path : `${BP}${path}`;
   return page.evaluate(
@@ -660,8 +666,10 @@ try {
 
   // Step D: Field ops coordinator classifies and assigns developer
   await login(page, ACCOUNTS.fieldOpsCoordinator);
+  const lockToken = await acquireCaseLock(page, caseId);
   const assignRes = await apiCall(page, "PATCH", `/api/reports/${reportId}`, {
     action: "confirm_and_assign",
+    lockToken,
     assigneeId: ACCOUNTS.developer,
     classification: "BUG",
     priority: "HIGH",

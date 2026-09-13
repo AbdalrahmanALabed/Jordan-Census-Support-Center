@@ -249,15 +249,27 @@ export function CaseDetailContent({ caseId }: { caseId: string }) {
       )}
 
       {isCoordinator && caseNeedsCoordinatorReview(c.status) && (
-        <CoordinatorReviewPanel caseItem={c} onSuccess={invalidateCase} />
+        <CoordinatorReviewPanel
+          caseItem={c}
+          canProcess={processingLock.canProcess}
+          onSuccess={invalidateCase}
+        />
       )}
 
       {isSuperAdmin && caseNeedsSuperAdminReview(c.status) && (
-        <SuperAdminReviewPanel caseItem={c} onSuccess={invalidateCase} />
+        <SuperAdminReviewPanel
+          caseItem={c}
+          canProcess={processingLock.canProcess}
+          onSuccess={invalidateCase}
+        />
       )}
 
       {canReviewCases && caseNeedsClassifyAssign(c.status) && (
-        <CaseClassifyAssignPanel caseItem={c} onSuccess={invalidateCase} />
+        <CaseClassifyAssignPanel
+          caseItem={c}
+          canProcess={processingLock.canProcess}
+          onSuccess={invalidateCase}
+        />
       )}
 
       {isSuperAdmin && caseInCoordinatorQueue(c.status) && (

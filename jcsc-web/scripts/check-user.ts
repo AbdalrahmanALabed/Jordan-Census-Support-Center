@@ -1,24 +1,14 @@
-import { PrismaClient } from "@prisma/client";
-import { compare } from "bcryptjs";
-import { getPermissionsForUser } from "../src/lib/permissions";
-
-const prisma = new PrismaClient();
+import { prisma } from "../src/lib/db";
 
 async function main() {
-  const email = "support-supervisor@jcsc.gov.jo";
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    console.log("NOT FOUND");
-    return;
-  }
-  console.log("password ok:", await compare("jcsc2026", user.password));
-  try {
-    const perms = await getPermissionsForUser(user.id, user.role);
-    console.log("permissions:", perms);
-  } catch (e) {
-    console.error("getPermissionsForUser FAILED:", e);
-  }
+  const email = process.argv[2] ?? "sanaa@jcsc.gov.jo";
+  const u = await prisma.user.findFirst({
+    where: { email },
+    select: { email: true, name: true, role: true, isActive: true },
+  });
+  console.log(u ?? "NOT FOUND");
 }
 
 main()
+  .catch(console.error)
   .finally(() => prisma.$disconnect());

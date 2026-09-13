@@ -505,14 +505,13 @@ export function CreateCaseContent() {
           <SectionCard
             step={4}
             title="المرفقات"
-            hint="صورة أو ملف PDF يساعد على فهم المشكلة — اختياري"
+            hint="صورة · فيديو · ملف · فويس نوت — اختياري لكنه يساعد على فهم المشكلة"
           >
             <FileUploadZone
               files={files}
               onChange={setFiles}
-              label="اسحب الملف هنا أو انقر للرفع"
-              maxFiles={4}
-              accept="image/*,application/pdf"
+              label="أضف مرفقات للبلاغ"
+              maxFiles={6}
             />
           </SectionCard>
 

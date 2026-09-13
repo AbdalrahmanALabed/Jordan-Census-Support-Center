@@ -18,6 +18,7 @@ import { queueEmail } from "@/lib/email/engine";
 import { sortAssigneesByName } from "@/lib/assignees";
 import { isTechnicalAssigneeRole } from "@/lib/developer-specialties";
 import { withBasePath } from "@/lib/base-path";
+import { withCaseLockToken } from "@/lib/case-lock-client";
 
 export interface CaseFilters {
   search?: string;
@@ -484,7 +485,7 @@ export async function classifyCase(
 ): Promise<Case | null> {
   const api = await apiFetch<Case>(`/api/cases/${caseId}/actions`, {
     method: "POST",
-    body: JSON.stringify({ action: "classify", caseType }),
+    body: JSON.stringify(withCaseLockToken(caseId, { action: "classify", caseType })),
   });
   if (api) return api;
 
@@ -524,6 +525,13 @@ async function apiFetchOrThrow<T>(path: string, init?: RequestInit): Promise<T> 
   return result.data;
 }
 
+function postCaseTriageAction(caseId: string, body: Record<string, unknown>) {
+  return apiFetchOrThrow<Case>(`/api/cases/${caseId}/actions`, {
+    method: "POST",
+    body: JSON.stringify(withCaseLockToken(caseId, body)),
+  });
+}
+
 export async function acceptCase(caseId: string): Promise<Case | null> {
   return apiFetchOrThrow<Case>(`/api/cases/${caseId}/actions`, {
     method: "POST",
@@ -541,16 +549,13 @@ export async function classifyAndAssignCase(
     severity?: import("@/lib/cases/types").CaseSeverity;
   }
 ): Promise<Case | null> {
-  return apiFetchOrThrow<Case>(`/api/cases/${caseId}/actions`, {
-    method: "POST",
-    body: JSON.stringify({
-      action: "classify_and_assign",
-      caseType,
-      assigneeId: opts?.assigneeId,
-      assignedTeam: opts?.assignedTeam,
-      priority: opts?.priority,
-      severity: opts?.severity,
-    }),
+  return postCaseTriageAction(caseId, {
+    action: "classify_and_assign",
+    caseType,
+    assigneeId: opts?.assigneeId,
+    assignedTeam: opts?.assignedTeam,
+    priority: opts?.priority,
+    severity: opts?.severity,
   });
 }
 
@@ -559,13 +564,10 @@ export async function acceptAndClassifyCase(
   caseType: CaseType,
   developerId?: string
 ): Promise<Case | null> {
-  return apiFetchOrThrow<Case>(`/api/cases/${caseId}/actions`, {
-    method: "POST",
-    body: JSON.stringify({
-      action: "accept_classify",
-      caseType,
-      developerId,
-    }),
+  return postCaseTriageAction(caseId, {
+    action: "accept_classify",
+    caseType,
+    developerId,
   });
 }
 
@@ -573,10 +575,7 @@ export async function dismissNotAProblem(
   caseId: string,
   reason?: string
 ): Promise<Case | null> {
-  return apiFetchOrThrow<Case>(`/api/cases/${caseId}/actions`, {
-    method: "POST",
-    body: JSON.stringify({ action: "dismiss_not_problem", reason }),
-  });
+  return postCaseTriageAction(caseId, { action: "dismiss_not_problem", reason });
 }
 
 export async function addCaseComment(data: {
@@ -730,10 +729,13 @@ export type CaseTransferPeer = {
   label: string;
   team?: string | null;
   governorate?: string | null;
+  isCurrentUser?: boolean;
+  isCurrentAssignee?: boolean;
+  canSelect?: boolean;
 };
 
 export async function getCaseTransferPeers(caseId: string): Promise<CaseTransferPeer[]> {
-  const result = await apiFetchResult<{ peers: CaseTransferPeer[] }>(
+  const result = await apiFetchResult<{ peers: CaseTransferPeer[]; total?: number }>(
     `/api/cases/${caseId}/transfer-peers`
   );
   if (!result.ok) {
@@ -754,10 +756,7 @@ export async function transferCaseCoordinator(
 }
 
 export async function coordinatorEscalateSystemBug(caseId: string, note?: string) {
-  return apiFetchOrThrow<Case>(`/api/cases/${caseId}/actions`, {
-    method: "POST",
-    body: JSON.stringify({ action: "coordinator_escalate_system_bug", note }),
-  });
+  return postCaseTriageAction(caseId, { action: "coordinator_escalate_system_bug", note });
 }
 
 export async function coordinatorDismissNotSystemBug(
@@ -765,13 +764,10 @@ export async function coordinatorDismissNotSystemBug(
   classification: string,
   reason: string
 ) {
-  return apiFetchOrThrow<Case>(`/api/cases/${caseId}/actions`, {
-    method: "POST",
-    body: JSON.stringify({
-      action: "coordinator_dismiss_not_system",
-      classification,
-      reason,
-    }),
+  return postCaseTriageAction(caseId, {
+    action: "coordinator_dismiss_not_system",
+    classification,
+    reason,
   });
 }
 
@@ -781,9 +777,11 @@ export async function reviewCaseAsProblem(
   priority?: IssuePriority,
   severity?: import("@/lib/cases/types").CaseSeverity
 ) {
-  return apiFetchOrThrow<Case>(`/api/cases/${caseId}/actions`, {
-    method: "POST",
-    body: JSON.stringify({ action: "review_problem", developerId, priority, severity }),
+  return postCaseTriageAction(caseId, {
+    action: "review_problem",
+    developerId,
+    priority,
+    severity,
   });
 }
 
@@ -792,9 +790,10 @@ export async function reviewCaseNotProblem(
   classification: string,
   reason: string
 ) {
-  return apiFetchOrThrow<Case>(`/api/cases/${caseId}/actions`, {
-    method: "POST",
-    body: JSON.stringify({ action: "review_not_problem", classification, reason }),
+  return postCaseTriageAction(caseId, {
+    action: "review_not_problem",
+    classification,
+    reason,
   });
 }
 

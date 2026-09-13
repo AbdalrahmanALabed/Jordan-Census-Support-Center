@@ -9,7 +9,11 @@ import { SupportOperationsDashboardContent } from "@/components/dashboard/suppor
 import { CoordinatorDashboardContent } from "@/components/dashboard/coordinator-dashboard-content";
 import { SupportSupervisorDashboardContent } from "@/components/dashboard/support-supervisor-dashboard-content";
 import { isManagerRole, isSupervisorRole, isSupportCoordinatorRole } from "@/lib/reports";
-import { isDeveloperRole, isSupportSupervisorRole } from "@/lib/permissions";
+import {
+  isDeveloperRole,
+  isSupportSupervisorRole,
+  isInfrastructureSupervisorRole,
+} from "@/lib/permissions";
 import { useAuthReady } from "@/hooks/use-effective-user";
 
 export default function DashboardPage() {
@@ -18,7 +22,8 @@ export default function DashboardPage() {
   const role = user?.role;
 
   const isSupportSupervisor = role ? isSupportSupervisorRole(role) : false;
-  const isCoordinator = role ? isSupportCoordinatorRole(role) : false;
+  const isCoordinator =
+    role ? isSupportCoordinatorRole(role) || isInfrastructureSupervisorRole(role) : false;
   const isManager = role ? isManagerRole(role) : false;
   const isSupervisor = role ? isSupervisorRole(role) : false;
   const isDeveloper = role ? isDeveloperRole(role) : false;

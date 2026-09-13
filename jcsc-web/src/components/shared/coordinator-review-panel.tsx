@@ -6,7 +6,7 @@ import { Bug, XCircle, ArrowUpRight, Layers, ClipboardCheck } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { NotProblemReasonPicker } from "@/components/shared/not-problem-reason-picker";
+import { NotProblemCommentForm } from "@/components/shared/not-problem-comment-form";
 import { WorkflowStepCard } from "@/components/shared/ops-ui";
 import {
   coordinatorEscalateSystemBug,
@@ -14,9 +14,8 @@ import {
 } from "@/lib/services/cases";
 import type { Case } from "@/lib/cases";
 import {
-  buildNotProblemReason,
+  buildSimpleNotProblemReason,
   COORDINATOR_SYSTEM_BUG_LABEL,
-  type NotAppTechnicalIssueId,
 } from "@/lib/case-classification";
 import { useToast } from "@/components/ui/toast";
 
@@ -24,20 +23,19 @@ type ReviewMode = "choose" | "system_bug" | "not_system";
 
 interface CoordinatorReviewPanelProps {
   caseItem: Case;
+  canProcess?: boolean;
   onSuccess?: () => void;
 }
 
 export function CoordinatorReviewPanel({
   caseItem,
+  canProcess = true,
   onSuccess,
 }: CoordinatorReviewPanelProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [mode, setMode] = useState<ReviewMode>("choose");
   const [note, setNote] = useState("");
-  const [notSystemIssueId, setNotSystemIssueId] =
-    useState<NotAppTechnicalIssueId>("MDM");
-
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["case", caseItem.id] });
     queryClient.invalidateQueries({ queryKey: ["case-timeline", caseItem.id] });
@@ -60,7 +58,7 @@ export function CoordinatorReviewPanel({
 
   const dismissMutation = useMutation({
     mutationFn: () => {
-      const { classification, reason } = buildNotProblemReason(notSystemIssueId, note);
+      const { classification, reason } = buildSimpleNotProblemReason(note);
       return coordinatorDismissNotSystemBug(caseItem.id, classification, reason);
     },
     onSuccess: () => {
@@ -117,7 +115,7 @@ export function CoordinatorReviewPanel({
             <XCircle className="h-6 w-6 text-amber-600" />
             <span className="font-black">ليست مشكلة في النظام</span>
             <span className="text-xs text-muted-foreground leading-relaxed">
-              MDM، شبكة، جهاز، تدريب... — اختر السبب وأغلق الحالة
+              إغلاق الحالة — تعليق اختياري
             </span>
           </button>
         </div>
@@ -146,7 +144,7 @@ export function CoordinatorReviewPanel({
           <div className="flex gap-2 flex-wrap">
             <Button
               className="gap-2 font-bold"
-              disabled={escalateMutation.isPending}
+              disabled={!canProcess || escalateMutation.isPending}
               onClick={() => escalateMutation.mutate()}
             >
               <Bug className="h-4 w-4" />
@@ -161,17 +159,12 @@ export function CoordinatorReviewPanel({
 
       {mode === "not_system" && (
         <div className="space-y-4">
-          <NotProblemReasonPicker
-            value={notSystemIssueId}
-            onChange={setNotSystemIssueId}
-            note={note}
-            onNoteChange={setNote}
-          />
+          <NotProblemCommentForm note={note} onNoteChange={setNote} />
           <div className="flex gap-2 flex-wrap">
             <Button
               variant="destructive"
               className="gap-2 font-bold"
-              disabled={dismissMutation.isPending}
+              disabled={!canProcess || dismissMutation.isPending}
               onClick={() => dismissMutation.mutate()}
             >
               <XCircle className="h-4 w-4" />

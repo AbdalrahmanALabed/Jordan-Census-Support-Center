@@ -10,24 +10,39 @@ const ALLOWED = [
   "image/png",
   "image/webp",
   "image/gif",
+  "image/heic",
+  "image/heif",
   "application/pdf",
   "video/mp4",
   "video/webm",
   "video/quicktime",
-  "video/webm",
-  "video/quicktime",
-  "video/webm",
-  "video/quicktime",
+  "video/x-m4v",
+  "video/3gpp",
   "audio/mpeg",
   "audio/wav",
+  "audio/webm",
+  "audio/ogg",
+  "audio/mp4",
+  "audio/aac",
+  "audio/x-m4a",
   "text/plain",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
+function isAllowedUpload(mime: string, fileName: string): boolean {
+  if (ALLOWED.includes(mime)) return true;
+  if (fileName.endsWith(".log")) return true;
+  return /\.(jpe?g|png|webp|gif|heic|heif|pdf|mp4|mov|webm|3gp|mkv|mp3|wav|m4a|ogg|txt|doc|docx)$/i.test(
+    fileName
+  );
+}
+
 function attachmentType(mime: string, fileName: string): "IMAGE" | "PDF" | "VIDEO" | "VOICE" | "LOG" {
-  if (mime.startsWith("image/")) return "IMAGE";
-  if (mime === "application/pdf") return "PDF";
-  if (mime.startsWith("video/")) return "VIDEO";
-  if (mime.startsWith("audio/")) return "VOICE";
+  if (mime.startsWith("image/") || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(fileName)) return "IMAGE";
+  if (mime === "application/pdf" || /\.pdf$/i.test(fileName)) return "PDF";
+  if (mime.startsWith("video/") || /\.(mp4|mov|webm|3gp|mkv)$/i.test(fileName)) return "VIDEO";
+  if (mime.startsWith("audio/") || /\.(mp3|wav|m4a|ogg|webm)$/i.test(fileName)) return "VOICE";
   if (fileName.endsWith(".log")) return "LOG";
   return "LOG";
 }
@@ -48,7 +63,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "الملف أكبر من 10 ميجابايت" }, { status: 400 });
     }
 
-    if (!ALLOWED.includes(file.type) && !file.name.endsWith(".log")) {
+    if (!isAllowedUpload(file.type, file.name)) {
       return NextResponse.json({ error: "نوع الملف غير مدعوم" }, { status: 400 });
     }
 

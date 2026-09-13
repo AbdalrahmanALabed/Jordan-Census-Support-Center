@@ -5,6 +5,7 @@ import { canViewItemByFieldOpsRules } from "@/lib/field-ops-visibility";
 import {
   formatTransferPeerLabel,
   isLeadTransferRole,
+  isTransferPeerSelectable,
   listCoordinatorTransferPeers,
 } from "@/lib/coordinator-transfer";
 import { ROLE_LABELS, type UserRole } from "@/lib/types";
@@ -42,18 +43,11 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const peers = await listCoordinatorTransferPeers(
-    {
-      governorate: caseItem.governorate,
-      affectedSystem: caseItem.affectedSystem,
-      researcherIssueType: caseItem.researcherIssueType,
-      assignedCoordinatorId: caseItem.assignedCoordinatorId,
-      status: caseItem.status,
-    },
-    session!.user.id
-  );
+  const peers = await listCoordinatorTransferPeers();
+  const viewerId = session!.user.id;
 
   return NextResponse.json({
+    total: peers.length,
     peers: peers.map((user) => ({
       id: user.id,
       name: user.name,
@@ -63,6 +57,13 @@ export async function GET(
       label: formatTransferPeerLabel(user),
       team: user.team,
       governorate: user.governorate,
+      isCurrentUser: user.id === viewerId,
+      isCurrentAssignee: user.id === caseItem.assignedCoordinatorId,
+      canSelect: isTransferPeerSelectable(
+        user.id,
+        viewerId,
+        caseItem.assignedCoordinatorId
+      ),
     })),
   });
 }

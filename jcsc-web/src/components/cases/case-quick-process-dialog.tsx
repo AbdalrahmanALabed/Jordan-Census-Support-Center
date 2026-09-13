@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { UserCheck } from "lucide-react";
 import {
@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { SpecialtyAssignSelect } from "@/components/shared/specialty-assign-select";
 import { PrioritySeverityFields } from "@/components/shared/priority-severity-fields";
-import { NotProblemReasonPicker } from "@/components/shared/not-problem-reason-picker";
+import { NotProblemCommentForm } from "@/components/shared/not-problem-comment-form";
 import { cn } from "@/lib/utils";
 import { classifyAndAssignCase, reviewCaseNotProblem } from "@/lib/services/cases";
 import {
@@ -25,11 +25,9 @@ import {
 import {
   REPORT_CLASSIFY_OPTIONS,
   isQuickBugClassify,
-  buildNotProblemReason,
-  suggestNotAppIssueForCaseType,
+  buildCaseTypeNotProblemReason,
   normalizeAdminPriority,
   normalizeAdminSeverity,
-  type NotAppTechnicalIssueId,
 } from "@/lib/case-classification";
 import type { IssuePriority } from "@/lib/types";
 import type { CaseSeverity } from "@/lib/cases/types";
@@ -57,14 +55,7 @@ export function CaseQuickProcessDialog({
   const [severity, setSeverity] = useState<CaseSeverity>(
     normalizeAdminSeverity(caseItem.severity ?? "MEDIUM")
   );
-  const [notProblemIssueId, setNotProblemIssueId] = useState<NotAppTechnicalIssueId>("MDM");
   const [notProblemNote, setNotProblemNote] = useState("");
-
-  useEffect(() => {
-    if (!isQuickBugClassify(selectedType)) {
-      setNotProblemIssueId(suggestNotAppIssueForCaseType(selectedType));
-    }
-  }, [selectedType]);
 
   const isBug = isQuickBugClassify(selectedType);
 
@@ -77,7 +68,10 @@ export function CaseQuickProcessDialog({
           severity,
         });
       }
-      const { classification, reason } = buildNotProblemReason(notProblemIssueId, notProblemNote);
+      const { classification, reason } = buildCaseTypeNotProblemReason(
+        selectedType,
+        notProblemNote
+      );
       return reviewCaseNotProblem(caseItem.id, classification, reason);
     },
     onSuccess: () => {
@@ -88,7 +82,7 @@ export function CaseQuickProcessDialog({
     onError: (e: Error) => toast(e.message || "فشلت المعالجة", "error"),
   });
 
-  const canSubmit = isBug ? Boolean(assignedDeveloperId) : Boolean(notProblemIssueId);
+  const canSubmit = isBug ? Boolean(assignedDeveloperId) : true;
   const isNew = caseNeedsAcceptance(caseItem.status);
   const isClassify = caseNeedsClassifyAssign(caseItem.status);
 
@@ -149,12 +143,7 @@ export function CaseQuickProcessDialog({
               </div>
             </>
           ) : (
-            <NotProblemReasonPicker
-              value={notProblemIssueId}
-              onChange={setNotProblemIssueId}
-              note={notProblemNote}
-              onNoteChange={setNotProblemNote}
-            />
+            <NotProblemCommentForm note={notProblemNote} onNoteChange={setNotProblemNote} />
           )}
 
           <Button

@@ -31,8 +31,7 @@ import { DEFAULT_ROLE_PERMISSIONS } from "@/lib/reports";
 import { mockTickets } from "@/lib/mock-data";
 
 import type { Ticket } from "@/lib/types";
-
-
+import { withCaseLockToken } from "@/lib/case-lock-client";
 
 function delay(ms = 100) {
 
@@ -379,14 +378,18 @@ export async function rejectReport(
 
   reason: string,
 
-  classification?: FieldReport["classification"]
+  classification?: FieldReport["classification"],
+
+  caseId?: string
 
 ): Promise<FieldReport | null> {
 
   try {
+    const body: Record<string, unknown> = { action: "reject", reason, classification };
+    const payload = caseId ? withCaseLockToken(caseId, body) : body;
     return await apiFetchOrThrow<FieldReport>(`/api/reports/${reportId}`, {
       method: "PATCH",
-      body: JSON.stringify({ action: "reject", reason, classification }),
+      body: JSON.stringify(payload),
     });
   } catch {
     // fall through to mock
@@ -413,21 +416,24 @@ export async function confirmReportAsProblemWithAssign(
   assigneeId: string,
   priority?: import("@/lib/types").IssuePriority,
   options?: {
+    caseId?: string;
     observation?: string;
     affectedSystem?: string;
     severity?: import("@/lib/cases/types").CaseSeverity;
   }
 ): Promise<FieldReport> {
+  const body: Record<string, unknown> = {
+    action: "confirm_and_assign",
+    assigneeId,
+    priority,
+    severity: options?.severity,
+    observation: options?.observation,
+    affectedSystem: options?.affectedSystem,
+  };
+  const payload = options?.caseId ? withCaseLockToken(options.caseId, body) : body;
   return apiFetchOrThrow<FieldReport>(`/api/reports/${reportId}`, {
     method: "PATCH",
-    body: JSON.stringify({
-      action: "confirm_and_assign",
-      assigneeId,
-      priority,
-      severity: options?.severity,
-      observation: options?.observation,
-      affectedSystem: options?.affectedSystem,
-    }),
+    body: JSON.stringify(payload),
   });
 }
 

@@ -8,7 +8,6 @@ next-env.d.ts
 prisma/dev.db
 prisma/dev.db-journal
 PRODUCTION_CREDENTIALS.md
-prisma/production-passwords.ts
 scripts/output/
 public/uploads/*
 !public/uploads/.gitkeep

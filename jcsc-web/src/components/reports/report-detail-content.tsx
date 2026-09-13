@@ -2,12 +2,14 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MessageSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ReportQuickActions } from "@/components/reports/report-quick-actions";
 import { ReportDetailsPanel } from "@/components/reports/report-details-panel";
+import { CaseCommentsSection } from "@/components/cases/case-comments-section";
 import { getReportById } from "@/lib/services/reports";
+import { getCaseComments } from "@/lib/services/cases";
 import { CLASSIFICATION_LABELS } from "@/lib/reports";
 import { useUserStore } from "@/stores/user-store";
 
@@ -20,6 +22,13 @@ export function ReportDetailContent({ reportId }: { reportId: string }) {
   const { data: report, isLoading } = useQuery({
     queryKey: ["report", reportId],
     queryFn: () => getReportById(reportId),
+  });
+
+  const linkedCaseId = report?.linkedCaseId;
+  const { data: caseComments } = useQuery({
+    queryKey: ["case-comments", linkedCaseId],
+    queryFn: () => getCaseComments(linkedCaseId!),
+    enabled: Boolean(linkedCaseId),
   });
 
   if (isLoading) {
@@ -79,6 +88,35 @@ export function ReportDetailContent({ reportId }: { reportId: string }) {
               </CardContent>
             </Card>
           )}
+
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-black flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-primary" />
+                  التعليقات
+                </p>
+                {linkedCaseId && report.linkedCaseNumber && (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/cases/${linkedCaseId}`}>
+                      الحالة {report.linkedCaseNumber}
+                    </Link>
+                  </Button>
+                )}
+              </div>
+              {linkedCaseId ? (
+                <CaseCommentsSection
+                  caseId={linkedCaseId}
+                  comments={caseComments ?? []}
+                  compact
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  لا توجد حالة مرتبطة — التعليقات متاحة فور إنشاء الحالة.
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <div className="space-y-4">

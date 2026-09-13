@@ -721,6 +721,38 @@ export async function getDeveloperUsers() {
   );
 }
 
+export type CaseTransferPeer = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  roleLabel: string;
+  label: string;
+  team?: string | null;
+  governorate?: string | null;
+};
+
+export async function getCaseTransferPeers(caseId: string): Promise<CaseTransferPeer[]> {
+  const result = await apiFetchResult<{ peers: CaseTransferPeer[] }>(
+    `/api/cases/${caseId}/transfer-peers`
+  );
+  if (!result.ok) {
+    throw new Error(result.error || "فشل تحميل قائمة التحويل");
+  }
+  return result.data.peers;
+}
+
+export async function transferCaseCoordinator(
+  caseId: string,
+  coordinatorId: string,
+  reason: string
+) {
+  return apiFetchResult<Case>(`/api/cases/${caseId}/actions`, {
+    method: "POST",
+    body: JSON.stringify({ action: "transfer_coordinator", coordinatorId, reason }),
+  });
+}
+
 export async function coordinatorEscalateSystemBug(caseId: string, note?: string) {
   return apiFetchOrThrow<Case>(`/api/cases/${caseId}/actions`, {
     method: "POST",

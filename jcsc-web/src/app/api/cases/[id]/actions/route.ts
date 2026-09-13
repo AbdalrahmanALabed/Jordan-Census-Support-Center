@@ -16,6 +16,7 @@ import {
   addCaseAttachmentDb,
   returnCaseToDeveloperDb,
   reassignCaseDeveloperDb,
+  transferCaseCoordinatorDb,
   returnCaseToSuperAdminDb,
   acceptAndClassifyCaseDb,
   acceptCaseDb,
@@ -30,11 +31,25 @@ import { sendNotification, notifySuperAdmins } from "@/lib/notifications/server"
 import { resolveAssigneeId } from "@/lib/assignees/server";
 import { isDeveloperRole, isSupportCoordinatorRole, isSuperAdminRole } from "@/lib/permissions";
 import { isCaseAssignedToCoordinator } from "@/lib/coordinator-routing";
+import {
+  canUserReceiveCoordinatorCase,
+  isLeadTransferRole,
+} from "@/lib/coordinator-transfer";
+import { canViewItemByFieldOpsRules } from "@/lib/field-ops-visibility";
+import {
+  CASE_TRIAGE_ACTIONS,
+  releaseCaseLock,
+  requireCaseProcessingLock,
+} from "@/lib/cases/processing-lock";
 
 const COORDINATOR_ALLOWED_ACTIONS = new Set([
   "coordinator_escalate_system_bug",
   "coordinator_dismiss_not_system",
+  "transfer_coordinator",
 ]);
+
+/** Coordinators may comment on any case they can view */
+const COORDINATOR_UNRESTRICTED_ACTIONS = new Set(["comment"]);
 
 const COORDINATOR_QUEUE_BLOCKED = new Set([
   "accept_case",
@@ -64,15 +79,38 @@ export async function POST(
   const { id } = await params;
   const body = await req.json();
   const { action } = body;
+  const lockToken = body.lockToken as string | undefined;
   const actorId = session!.user.id;
   const actorName = session!.user.name ?? "مستخدم";
+
+  if (CASE_TRIAGE_ACTIONS.has(action)) {
+    const lockCheck = await requireCaseProcessingLock(id, lockToken);
+    if (!lockCheck.ok) {
+      return NextResponse.json({ error: lockCheck.message }, { status: 409 });
+    }
+  }
+
+  const releaseLock = async () => {
+    if (lockToken) await releaseCaseLock(id, lockToken);
+  };
+
+  const triageAlreadyHandled = () =>
+    NextResponse.json(
+      { error: "تمت معالجة هذا البلاغ من جلسة أخرى — حدّث الصفحة" },
+      { status: 409 }
+    );
 
   const existing = await getCaseById(id);
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (isSupportCoordinatorRole(session!.user.role) && !isSuperAdminRole(session!.user.role as import("@prisma/client").UserRole)) {
+  if (
+    isSupportCoordinatorRole(session!.user.role) &&
+    !isSuperAdminRole(session!.user.role as import("@prisma/client").UserRole) &&
+    action !== "transfer_coordinator" &&
+    !COORDINATOR_UNRESTRICTED_ACTIONS.has(action)
+  ) {
     const allowed = await isCaseAssignedToCoordinator(actorId, {
       assignedCoordinatorId: existing.assignedCoordinatorId,
       governorate: existing.governorate,
@@ -86,7 +124,8 @@ export async function POST(
 
   if (
     isSupportCoordinatorRole(session!.user.role) &&
-    !COORDINATOR_ALLOWED_ACTIONS.has(action)
+    !COORDINATOR_ALLOWED_ACTIONS.has(action) &&
+    !COORDINATOR_UNRESTRICTED_ACTIONS.has(action)
   ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -111,8 +150,9 @@ export async function POST(
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
       const updated = await classifyCaseDb(id, body.caseType as CaseType, actorId, actorName);
-      if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      if (!updated) return triageAlreadyHandled();
       await logAudit({ action: "EDIT", entityType: "Case", entityId: id, userId: actorId, details: `classify:${body.caseType}` });
+      await releaseLock();
       return NextResponse.json(mapCaseToClient(updated));
     }
 
@@ -208,17 +248,15 @@ export async function POST(
     }
 
     case "comment": {
-      if (
-        isDeveloperRole(session!.user.role) &&
-        !isAssignedDeveloper(existing, actorId)
-      ) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      const content = String(body.content ?? "").trim();
+      if (!content) {
+        return NextResponse.json({ error: "نص التعليق مطلوب" }, { status: 400 });
       }
       const comment = await addCaseCommentDb({
         caseId: id,
-        content: body.content,
+        content,
         authorId: actorId,
-        isInternal: body.isInternal ?? false,
+        isInternal: false,
       });
       return NextResponse.json(mapCaseComment(comment));
     }
@@ -251,6 +289,198 @@ export async function POST(
       });
       await logAudit({ action: "STATUS_CHANGE", entityType: "Case", entityId: id, userId: actorId, details: "solved" });
       return NextResponse.json(mapCaseToClient(updated));
+    }
+
+    case "transfer_coordinator": {
+      if (!isLeadTransferRole(session!.user.role)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      if (existing.status !== "OPEN") {
+        return NextResponse.json(
+          { error: "التحويل متاح فقط للحالات بانتظار التصنيف" },
+          { status: 400 }
+        );
+      }
+      if (
+        !canViewItemByFieldOpsRules(
+          {
+            affectedSystem: existing.affectedSystem,
+            researcherIssueType: existing.researcherIssueType,
+          },
+          session!.user.role
+        )
+      ) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      const coordinatorId = body.coordinatorId?.trim();
+      const reason = body.reason?.trim();
+      if (!coordinatorId) {
+        return NextResponse.json({ error: "يجب اختيار منسق/مشرف" }, { status: 400 });
+      }
+      if (!reason) {
+        return NextResponse.json({ error: "سبب التحويل مطلوب" }, { status: 400 });
+      }
+      if (coordinatorId === actorId) {
+        return NextResponse.json({ error: "لا يمكن التحويل لنفسك" }, { status: 400 });
+      }
+      if (coordinatorId === existing.assignedCoordinatorId) {
+        return NextResponse.json({ error: "الحالة مسندة لهذا الشخص مسبقاً" }, { status: 400 });
+      }
+
+      const canReceive = await canUserReceiveCoordinatorCase(coordinatorId, {
+        governorate: existing.governorate,
+        affectedSystem: existing.affectedSystem,
+        researcherIssueType: existing.researcherIssueType,
+        assignedCoordinatorId: existing.assignedCoordinatorId,
+        status: existing.status,
+      });
+      if (!canReceive) {
+        return NextResponse.json(
+          { error: "لا يمكن تحويل الحالة لهذا المستخدم" },
+          { status: 400 }
+        );
+      }
+
+      const result = await transferCaseCoordinatorDb(
+        id,
+        coordinatorId,
+        actorId,
+        actorName,
+        reason
+      );
+      if (!result) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+      await sendNotification({
+        userId: result.newCoordinatorId,
+        title: "تم تحويل حالة إليك",
+        message: `${result.updated.number} — ${reason.slice(0, 80)}`,
+        type: "case_assigned",
+        entityType: "Case",
+        entityId: id,
+        level: "warning",
+        actionRequired: true,
+      });
+      if (
+        result.previousCoordinatorId &&
+        result.previousCoordinatorId !== result.newCoordinatorId
+      ) {
+        await sendNotification({
+          userId: result.previousCoordinatorId,
+          title: "تم تحويل الحالة لمنسق/مشرف آخر",
+          message: `${result.updated.number} — ${reason.slice(0, 80)}`,
+          type: "case_assigned",
+          entityType: "Case",
+          entityId: id,
+          level: "info",
+        });
+      }
+
+      await logAudit({
+        action: "ASSIGN",
+        entityType: "Case",
+        entityId: id,
+        userId: actorId,
+        details: "coordinator_transfer",
+      });
+      await releaseLock();
+      return NextResponse.json(mapCaseToClient(result.updated));
+    }
+
+    case "transfer_coordinator": {
+      if (!isLeadTransferRole(session!.user.role)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      if (existing.status !== "OPEN") {
+        return NextResponse.json(
+          { error: "التحويل متاح فقط للحالات بانتظار التصنيف" },
+          { status: 400 }
+        );
+      }
+      if (
+        !canViewItemByFieldOpsRules(
+          {
+            affectedSystem: existing.affectedSystem,
+            researcherIssueType: existing.researcherIssueType,
+          },
+          session!.user.role
+        )
+      ) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      const coordinatorId = body.coordinatorId?.trim();
+      const reason = body.reason?.trim();
+      if (!coordinatorId) {
+        return NextResponse.json({ error: "يجب اختيار منسق/مشرف" }, { status: 400 });
+      }
+      if (!reason) {
+        return NextResponse.json({ error: "سبب التحويل مطلوب" }, { status: 400 });
+      }
+      if (coordinatorId === actorId) {
+        return NextResponse.json({ error: "لا يمكن التحويل لنفسك" }, { status: 400 });
+      }
+      if (coordinatorId === existing.assignedCoordinatorId) {
+        return NextResponse.json({ error: "الحالة مسندة لهذا الشخص مسبقاً" }, { status: 400 });
+      }
+
+      const canReceive = await canUserReceiveCoordinatorCase(coordinatorId, {
+        governorate: existing.governorate,
+        affectedSystem: existing.affectedSystem,
+        researcherIssueType: existing.researcherIssueType,
+        assignedCoordinatorId: existing.assignedCoordinatorId,
+        status: existing.status,
+      });
+      if (!canReceive) {
+        return NextResponse.json(
+          { error: "لا يمكن تحويل الحالة لهذا المستخدم" },
+          { status: 400 }
+        );
+      }
+
+      const result = await transferCaseCoordinatorDb(
+        id,
+        coordinatorId,
+        actorId,
+        actorName,
+        reason
+      );
+      if (!result) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+      await sendNotification({
+        userId: result.newCoordinatorId,
+        title: "تم تحويل حالة إليك",
+        message: `${result.updated.number} — ${reason.slice(0, 80)}`,
+        type: "case_assigned",
+        entityType: "Case",
+        entityId: id,
+        level: "warning",
+        actionRequired: true,
+      });
+      if (
+        result.previousCoordinatorId &&
+        result.previousCoordinatorId !== result.newCoordinatorId
+      ) {
+        await sendNotification({
+          userId: result.previousCoordinatorId,
+          title: "تم تحويل الحالة لمنسق/مشرف آخر",
+          message: `${result.updated.number} — ${reason.slice(0, 80)}`,
+          type: "case_assigned",
+          entityType: "Case",
+          entityId: id,
+          level: "info",
+        });
+      }
+
+      await logAudit({
+        action: "ASSIGN",
+        entityType: "Case",
+        entityId: id,
+        userId: actorId,
+        details: "coordinator_transfer",
+      });
+      await releaseLock();
+      return NextResponse.json(mapCaseToClient(result.updated));
     }
 
     case "reassign": {
@@ -403,7 +633,7 @@ export async function POST(
           }
         );
         if (!result) {
-          return NextResponse.json({ error: "لا يمكن تصنيف هذه الحالة" }, { status: 400 });
+          return triageAlreadyHandled();
         }
         if (result.assigneeId) {
           await sendNotification({
@@ -418,6 +648,64 @@ export async function POST(
           });
         }
         await logAudit({ action: "ASSIGN", entityType: "Case", entityId: id, userId: actorId, details: "classify_and_assign" });
+        await releaseLock();
+        return NextResponse.json(mapCaseToClient(result.updated));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "فشل التصنيف";
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
+    }
+
+    case "accept_case": {
+      if (!hasApiPermission(session!, "classify_reports") && !hasApiPermission(session!, "manage_issues")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      const updated = await acceptCaseDb(id, actorId, actorName);
+      if (!updated) {
+        return NextResponse.json({ error: "لا يمكن قبول هذه الحالة" }, { status: 400 });
+      }
+      await logAudit({ action: "APPROVE", entityType: "Case", entityId: id, userId: actorId, details: "accept_case" });
+      return NextResponse.json(mapCaseToClient(updated));
+    }
+
+    case "classify_and_assign": {
+      if (!hasApiPermission(session!, "classify_reports") && !hasApiPermission(session!, "manage_issues")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      try {
+        const rawAssignee = body.assigneeId ?? body.developerId;
+        const resolvedAssignee = rawAssignee
+          ? await resolveAssigneeId(String(rawAssignee))
+          : null;
+        const result = await classifyAndAssignCaseDb(
+          id,
+          body.caseType as CaseType,
+          actorId,
+          actorName,
+          resolvedAssignee ?? undefined,
+          {
+            assignedTeam: body.assignedTeam,
+            priority: body.priority,
+            severity: body.severity,
+          }
+        );
+        if (!result) {
+          return triageAlreadyHandled();
+        }
+        if (result.assigneeId) {
+          await sendNotification({
+            userId: result.assigneeId,
+            title: "تم إسناد حالة إليك",
+            message: `${result.updated.number} — ${result.updated.title}`,
+            type: "case_assigned",
+            entityType: "Case",
+            entityId: id,
+            level: "info",
+            actionRequired: true,
+          });
+        }
+        await logAudit({ action: "ASSIGN", entityType: "Case", entityId: id, userId: actorId, details: "classify_and_assign" });
+        await releaseLock();
         return NextResponse.json(mapCaseToClient(result.updated));
       } catch (err) {
         const message = err instanceof Error ? err.message : "فشل التصنيف";
@@ -436,7 +724,7 @@ export async function POST(
         actorName,
         body.developerId
       );
-      if (!result) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      if (!result) return triageAlreadyHandled();
       if (result.developerId) {
         await sendNotification({
           userId: result.developerId,
@@ -450,6 +738,7 @@ export async function POST(
         });
       }
       await logAudit({ action: "APPROVE", entityType: "Case", entityId: id, userId: actorId, details: "accept_classify" });
+      await releaseLock();
       return NextResponse.json(mapCaseToClient(result.updated));
     }
 
@@ -471,7 +760,7 @@ export async function POST(
         severity: body.severity,
         developerId: resolvedAssignee,
       });
-      if (!result) return NextResponse.json({ error: "لا يمكن معالجة هذه الحالة" }, { status: 400 });
+      if (!result) return triageAlreadyHandled();
       if (resolvedAssignee) {
         await sendNotification({
           userId: resolvedAssignee,
@@ -485,6 +774,7 @@ export async function POST(
         });
       }
       await logAudit({ action: "ASSIGN", entityType: "Case", entityId: id, userId: actorId, details: "review_problem" });
+      await releaseLock();
       return NextResponse.json(mapCaseToClient(result.updated));
     }
 
@@ -499,7 +789,7 @@ export async function POST(
         body.classification ?? "USER_MISTAKE",
         body.reason ?? "ليست مشكلة"
       );
-      if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      if (!updated) return triageAlreadyHandled();
       if (updated.createdById && updated.createdById !== actorId) {
         await sendNotification({
           userId: updated.createdById,
@@ -512,6 +802,71 @@ export async function POST(
         });
       }
       await logAudit({ action: "CLOSE", entityType: "Case", entityId: id, userId: actorId, details: "review_not_problem" });
+      await releaseLock();
+      return NextResponse.json(mapCaseToClient(updated));
+    }
+
+    case "review_problem": {
+      if (!hasApiPermission(session!, "classify_reports") && !hasApiPermission(session!, "manage_issues")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      const rawAssignee = body.developerId ?? body.assigneeId ?? body.assignedTeam;
+      if (!rawAssignee) {
+        return NextResponse.json({ error: "يجب اختيار المسؤول" }, { status: 400 });
+      }
+      const resolvedAssignee = await resolveAssigneeId(String(rawAssignee));
+      if (!resolvedAssignee) {
+        return NextResponse.json({ error: "المسؤول غير موجود أو غير نشط — تأكد من دور مطوّr" }, { status: 400 });
+      }
+      const result = await reviewCaseAsProblemDb(id, actorId, actorName, {
+        assignedTeam: body.assignedTeam ?? "Developer",
+        priority: body.priority,
+        severity: body.severity,
+        developerId: resolvedAssignee,
+      });
+      if (!result) return triageAlreadyHandled();
+      if (resolvedAssignee) {
+        await sendNotification({
+          userId: resolvedAssignee,
+          title: "تم إسناد مشكلة جديدة",
+          message: `${result.updated.number} — ${result.updated.title}`,
+          type: "case_assigned",
+          entityType: "Case",
+          entityId: id,
+          level: "info",
+          actionRequired: true,
+        });
+      }
+      await logAudit({ action: "ASSIGN", entityType: "Case", entityId: id, userId: actorId, details: "review_problem" });
+      await releaseLock();
+      return NextResponse.json(mapCaseToClient(result.updated));
+    }
+
+    case "review_not_problem": {
+      if (!hasApiPermission(session!, "classify_reports") && !hasApiPermission(session!, "close_issues")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      const updated = await reviewCaseNotProblemDb(
+        id,
+        actorId,
+        actorName,
+        body.classification ?? "USER_MISTAKE",
+        body.reason ?? "ليست مشكلة"
+      );
+      if (!updated) return triageAlreadyHandled();
+      if (updated.createdById && updated.createdById !== actorId) {
+        await sendNotification({
+          userId: updated.createdById,
+          title: "تم إغلاق حالتك",
+          message: `${updated.number} — ليست مشكلة تقنية`,
+          type: "case_closed",
+          entityType: "Case",
+          entityId: id,
+          issueNumber: updated.number,
+        });
+      }
+      await logAudit({ action: "CLOSE", entityType: "Case", entityId: id, userId: actorId, details: "review_not_problem" });
+      await releaseLock();
       return NextResponse.json(mapCaseToClient(updated));
     }
 
@@ -520,7 +875,7 @@ export async function POST(
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
       const updated = await dismissNotAProblemDb(id, actorId, actorName, body.reason);
-      if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      if (!updated) return triageAlreadyHandled();
       if (updated.createdById && updated.createdById !== actorId) {
         await sendNotification({
           userId: updated.createdById,
@@ -533,6 +888,7 @@ export async function POST(
         });
       }
       await logAudit({ action: "CLOSE", entityType: "Case", entityId: id, userId: actorId, details: "not_a_problem" });
+      await releaseLock();
       return NextResponse.json(mapCaseToClient(updated));
     }
 
@@ -547,7 +903,7 @@ export async function POST(
         body.note ?? body.reason
       );
       if (!updated) {
-        return NextResponse.json({ error: "لا يمكن تصعيد هذه الحالة" }, { status: 400 });
+        return triageAlreadyHandled();
       }
       await notifySuperAdmins({
         title: "System Bug — يحتاج مراجعتك",
@@ -576,6 +932,7 @@ export async function POST(
         userId: actorId,
         details: "coordinator_escalate_system_bug",
       });
+      await releaseLock();
       return NextResponse.json(mapCaseToClient(updated));
     }
 
@@ -594,7 +951,7 @@ export async function POST(
         body.reason ?? body.note ?? "سبب خارج النظام"
       );
       if (!updated) {
-        return NextResponse.json({ error: "لا يمكن إغلاق هذه الحالة" }, { status: 400 });
+        return triageAlreadyHandled();
       }
       if (updated.createdById && updated.createdById !== actorId) {
         await sendNotification({
@@ -614,6 +971,7 @@ export async function POST(
         userId: actorId,
         details: "coordinator_dismiss_not_system",
       });
+      await releaseLock();
       return NextResponse.json(mapCaseToClient(updated));
     }
 

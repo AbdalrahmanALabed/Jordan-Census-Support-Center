@@ -29,6 +29,11 @@ import { isSuperAdminRole, isDeveloperRole } from "@/lib/permissions";
 import { ROLE_LABELS } from "@/lib/types";
 import { getSpecialtyLabel } from "@/lib/developer-specialties";
 import { cn } from "@/lib/utils";
+import {
+  isNotificationSoundEnabled,
+  playNotificationSound,
+  setNotificationSoundEnabled,
+} from "@/lib/notifications/sound";
 
 const NOTIFY_EMAIL_KEY = "jcsc_notify_email";
 const NOTIFY_INAPP_KEY = "jcsc_notify_inapp";
@@ -182,6 +187,7 @@ export function SettingsContent() {
   const [mounted, setMounted] = useState(false);
   const [emailNotify, setEmailNotify] = useState(true);
   const [inAppNotify, setInAppNotify] = useState(true);
+  const [soundNotify, setSoundNotify] = useState(true);
 
   const isSuperAdmin = isSuperAdminRole(user?.role);
   const isDev = isDeveloperRole(user?.role ?? "");
@@ -195,6 +201,7 @@ export function SettingsContent() {
     setMounted(true);
     setEmailNotify(localStorage.getItem(NOTIFY_EMAIL_KEY) !== "false");
     setInAppNotify(localStorage.getItem(NOTIFY_INAPP_KEY) !== "false");
+    setSoundNotify(isNotificationSoundEnabled());
   }, []);
 
   function toggleEmail() {
@@ -207,6 +214,13 @@ export function SettingsContent() {
     const next = !inAppNotify;
     setInAppNotify(next);
     localStorage.setItem(NOTIFY_INAPP_KEY, String(next));
+  }
+
+  function toggleSound() {
+    const next = !soundNotify;
+    setSoundNotify(next);
+    setNotificationSoundEnabled(next);
+    if (next) playNotificationSound({ force: true });
   }
 
   return (
@@ -325,31 +339,39 @@ export function SettingsContent() {
         </SettingsSection>
       </div>
 
-      {/* Notifications — super admin only (existing behavior) */}
-      {isSuperAdmin && (
-        <SettingsSection
-          title="الإشعارات"
-          description="تُرسل تلقائياً عند التعيين، الحل، الإرجاع، والتصعيد"
-          icon={BellRing}
-        >
-          <div className="space-y-3">
-            <SettingToggle
-              title="إشعارات داخل التطبيق"
-              description="جرس الإشعارات في الشريط العلوي"
-              enabled={inAppNotify}
-              onToggle={toggleInApp}
-              icon={Bell}
-            />
-            <SettingToggle
-              title="إشعارات البريد الإلكتروني"
-              description={`رسائل إلى ${user?.email || "بريدك المسجّل"}`}
-              enabled={emailNotify}
-              onToggle={toggleEmail}
-              icon={Mail}
-            />
-          </div>
-        </SettingsSection>
-      )}
+      <SettingsSection
+        title="الإشعارات"
+        description="تنبيهات داخل التطبيق وصوت عند وصول إشعار جديد"
+        icon={BellRing}
+      >
+        <div className="space-y-3">
+          <SettingToggle
+            title="صوت الإشعارات"
+            description="نغمة قصيرة عند وصول إشعار جديد"
+            enabled={soundNotify}
+            onToggle={toggleSound}
+            icon={BellRing}
+          />
+          {isSuperAdmin && (
+            <>
+              <SettingToggle
+                title="إشعارات داخل التطبيق"
+                description="جرس الإشعارات في الشريط العلوي"
+                enabled={inAppNotify}
+                onToggle={toggleInApp}
+                icon={Bell}
+              />
+              <SettingToggle
+                title="إشعارات البريد الإلكتروني"
+                description={`رسائل إلى ${user?.email || "بريدك المسجّل"}`}
+                enabled={emailNotify}
+                onToggle={toggleEmail}
+                icon={Mail}
+              />
+            </>
+          )}
+        </div>
+      </SettingsSection>
 
       {/* Admin shortcuts */}
       {isSuperAdmin && (

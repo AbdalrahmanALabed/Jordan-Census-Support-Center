@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getRolePermissions, toggleRolePermission } from "@/lib/services/reports";
 import { PERMISSION_MATRIX, getAllPermissionKeys } from "@/lib/permissions-matrix";
-import { ROLE_LABELS, CORE_ROLES } from "@/lib/types";
+import { ROLE_LABELS, CORE_ROLES, type UserRole } from "@/lib/types";
 import { useEffectiveUser } from "@/hooks/use-effective-user";
 import { hasPermission } from "@/lib/reports";
 import { cn } from "@/lib/utils";
@@ -96,7 +96,7 @@ export function RoleManagementContent() {
                 <CardHeader className="pb-2 border-b bg-background/60">
                   <CardTitle className="flex items-center gap-2 text-base font-black">
                     <Shield className="h-4 w-4 text-primary shrink-0" />
-                    {ROLE_LABELS[rp.role]}
+                    {ROLE_LABELS[rp.role as UserRole] ?? rp.role}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 space-y-1">

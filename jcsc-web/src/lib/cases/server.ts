@@ -1229,6 +1229,45 @@ export async function reassignCaseDeveloperDb(
   return { updated, newDeveloperId, previousDeveloperId: existing.assignedDeveloperId };
 }
 
+export async function transferCaseCoordinatorDb(
+  caseId: string,
+  newCoordinatorId: string,
+  actorId: string,
+  actorName: string,
+  reason: string
+) {
+  const target = await prisma.user.findUnique({ where: { id: newCoordinatorId } });
+  if (!target) return null;
+
+  const existing = await prisma.case.findUnique({
+    where: { id: caseId },
+    include: { assignedCoordinator: true },
+  });
+  if (!existing || existing.status !== "OPEN") return null;
+
+  const updated = await prisma.case.update({
+    where: { id: caseId },
+    data: { assignedCoordinatorId: newCoordinatorId },
+    include: caseInclude,
+  });
+
+  await logCaseReassignment({
+    caseId,
+    fromName: existing.assignedCoordinator?.name ?? "غير محدد",
+    toName: target.name,
+    toTeam: target.team,
+    actorId,
+    actorName,
+    reason,
+  });
+
+  return {
+    updated,
+    newCoordinatorId,
+    previousCoordinatorId: existing.assignedCoordinatorId,
+  };
+}
+
 export async function returnCaseToSuperAdminDb(
   caseId: string,
   actorId: string,

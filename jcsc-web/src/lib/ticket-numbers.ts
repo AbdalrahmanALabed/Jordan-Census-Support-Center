@@ -11,6 +11,7 @@ export const TICKET_PREFIX_BY_SYSTEM: Record<CensusSystem, string> = {
   SELF_ENUMERATION: "S",
   RESEARCHER_SYSTEM: "R",
   FIELD_OPERATIONS: "F",
+  INFRASTRUCTURE: "I",
 };
 
 export const TICKET_PREFIX_LABELS: Record<string, string> = {
@@ -18,6 +19,7 @@ export const TICKET_PREFIX_LABELS: Record<string, string> = {
   S: "Self Enumeration",
   R: "Researcher",
   F: "Field Operations",
+  I: "Infrastructure",
   G: "General",
 };
 

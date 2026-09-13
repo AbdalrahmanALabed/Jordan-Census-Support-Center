@@ -4,6 +4,7 @@ import { Sidebar } from "./sidebar";
 import { SidebarDrawer } from "./sidebar-drawer";
 import { MobileFab } from "./mobile-fab";
 import { Topbar } from "./topbar";
+import { NotificationSoundListener } from "./notification-sound-listener";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/ui-store";
 
@@ -17,6 +18,7 @@ export function MainLayout({ children, title }: MainLayoutProps) {
 
   return (
     <div className="min-h-screen app-mesh-bg content-dot-grid">
+      <NotificationSoundListener />
       <Sidebar />
       <SidebarDrawer />
       <div

@@ -26,7 +26,12 @@ import { CaseActionsPanel } from "@/components/cases/case-actions-panel";
 import { CaseLifecycleTimeline } from "@/components/cases/case-lifecycle-timeline";
 import { SuperAdminReviewPanel } from "@/components/shared/super-admin-review-panel";
 import { CoordinatorReviewPanel } from "@/components/shared/coordinator-review-panel";
+import { CoordinatorTransferPanel } from "@/components/shared/coordinator-transfer-panel";
+import { isLeadTransferRole } from "@/lib/coordinator-transfer";
 import { CaseClassifyAssignPanel } from "@/components/cases/case-classify-assign-panel";
+import { CaseCommentsSection } from "@/components/cases/case-comments-section";
+import { CaseProcessingLockBanner } from "@/components/cases/case-processing-lock-banner";
+import { useCaseProcessingLock } from "@/hooks/use-case-processing-lock";
 import {
   CaseWorkflowProgress,
   StatusBadge,
@@ -47,7 +52,6 @@ import {
   caseNeedsClassifyAssign,
   simpleStatusLabel,
   toSimpleCaseStatus,
-  type CaseComment,
 } from "@/lib/cases";
 import { AttachmentsGrid } from "@/components/shared/attachment-card";
 import { PRIORITY_LABELS } from "@/lib/types";
@@ -105,70 +109,6 @@ function MetaChip({
   );
 }
 
-function AuthorAvatar({ name }: { name: string }) {
-  const initial = name.trim().charAt(0) || "?";
-  return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-black text-primary">
-      {initial}
-    </div>
-  );
-}
-
-function CommentsList({
-  comments,
-  viewOnly,
-}: {
-  comments: CaseComment[];
-  viewOnly?: boolean;
-}) {
-  if (!comments.length) {
-    return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-muted/20 py-14 text-center">
-        <MessageSquare className="h-10 w-10 text-muted-foreground/40 mb-3" />
-        <p className="font-bold text-muted-foreground">لا تعليقات بعد</p>
-        {!viewOnly && (
-          <p className="text-sm text-muted-foreground mt-1">يمكنك إضافة تعليق من لوحة الإجراءات</p>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {comments.map((cm) => (
-        <div
-          key={cm.id}
-          className={cn(
-            "rounded-2xl border-2 bg-card p-5",
-            cm.isInternal && "border-amber-200/80 bg-amber-50/30 dark:bg-amber-950/10"
-          )}
-        >
-          <div className="flex items-start gap-3">
-            <AuthorAvatar name={cm.authorName} />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-black">{cm.authorName}</p>
-                {cm.isInternal && (
-                  <span className="rounded-md bg-amber-100 dark:bg-amber-950/50 px-2 py-0.5 text-xs font-black text-amber-700 dark:text-amber-300">
-                    داخلي
-                  </span>
-                )}
-                <span
-                  className="text-xs text-muted-foreground ms-auto"
-                  title={formatDate(cm.createdAt)}
-                >
-                  {formatRelativeDate(cm.createdAt)}
-                </span>
-              </div>
-              <p className="mt-2 text-base leading-relaxed whitespace-pre-wrap">{cm.content}</p>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function DetailSkeleton() {
   return (
     <div className="content-container space-y-6 animate-pulse">
@@ -200,6 +140,7 @@ export function CaseDetailContent({ caseId }: { caseId: string }) {
   const isDev = isDeveloperRole(user?.role ?? "");
   const isCoordinator = isSupportCoordinatorRole(user?.role);
   const isSuperAdmin = isSuperAdminRole(user?.role);
+  const canTransferCoordinator = isLeadTransferRole(user?.role);
   const canReviewCases =
     !isSupervisor &&
     !isCoordinator &&
@@ -234,6 +175,12 @@ export function CaseDetailContent({ caseId }: { caseId: string }) {
     queryFn: () => getCaseTimeline(caseId),
   });
 
+  const needsProcessingLock =
+    canReviewCases ||
+    (isCoordinator && caseItem != null && caseNeedsCoordinatorReview(caseItem.status)) ||
+    canTransferCoordinator;
+  const processingLock = useCaseProcessingLock(caseId, Boolean(caseItem && needsProcessingLock));
+
   if (isLoading) return <DetailSkeleton />;
 
   if (!caseItem) {
@@ -262,7 +209,8 @@ export function CaseDetailContent({ caseId }: { caseId: string }) {
     (c.assignedDeveloperId === user?.id || c.assignedDeveloperName === user?.name);
   const isReadOnlyDev = isDev && !isAssignedDev;
   const isCoordinatorReadOnly =
-    isCoordinator && !caseNeedsCoordinatorReview(c.status);
+    (isCoordinator || canTransferCoordinator) &&
+    !caseNeedsCoordinatorReview(c.status);
   const needsReview =
     (isCoordinator && caseNeedsCoordinatorReview(c.status)) ||
     (canReviewCases &&
@@ -287,6 +235,18 @@ export function CaseDetailContent({ caseId }: { caseId: string }) {
       </div>
 
       {needsReview && <CaseWorkflowProgress status={c.status} />}
+
+      {needsProcessingLock && (
+        <CaseProcessingLockBanner
+          loading={processingLock.loading}
+          blockedByOther={processingLock.blockedByOther}
+          lockedByUserName={processingLock.lockedByUserName}
+        />
+      )}
+
+      {canTransferCoordinator && c.status === "OPEN" && (
+        <CoordinatorTransferPanel caseItem={c} onSuccess={invalidateCase} />
+      )}
 
       {isCoordinator && caseNeedsCoordinatorReview(c.status) && (
         <CoordinatorReviewPanel caseItem={c} onSuccess={invalidateCase} />
@@ -319,7 +279,7 @@ export function CaseDetailContent({ caseId }: { caseId: string }) {
             <p className="font-black text-sky-800 dark:text-sky-300">معاينة فقط</p>
             <p className="text-sm text-muted-foreground mt-1">
               هذه الحالة {c.status === "AWAITING_APPROVAL" ? "مُصعّدة للسوبر أدمن" : "مغلقة أو قيد معالجة"} — يمكنك
-              الاطلاع دون تعديل أو إضافة ملاحظات
+              الاطلاع والتعليق دون تعديل الحالة
             </p>
           </div>
         </div>
@@ -335,7 +295,7 @@ export function CaseDetailContent({ caseId }: { caseId: string }) {
               <span className="font-bold text-foreground">
                 {c.assignedDeveloperName ?? "مطور آخر"}
               </span>{" "}
-              — يمكنك الاطلاع دون تعديل
+              — يمكنك الاطلاع والتعليق دون تعديل الحالة
             </p>
           </div>
         </div>
@@ -533,7 +493,7 @@ export function CaseDetailContent({ caseId }: { caseId: string }) {
             </TabsContent>
 
             <TabsContent value="comments" className="mt-0 focus-visible:outline-none">
-              <CommentsList comments={comments ?? []} viewOnly={isCoordinator} />
+              <CaseCommentsSection caseId={caseId} comments={comments ?? []} />
             </TabsContent>
 
             <TabsContent value="attachments" className="mt-0 focus-visible:outline-none">

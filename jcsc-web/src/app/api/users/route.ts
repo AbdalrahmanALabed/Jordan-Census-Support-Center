@@ -98,6 +98,7 @@ export async function GET() {
             "SUPPORT_COORDINATOR",
             "FIELD_OPERATIONS_COORDINATOR",
             "RESEARCHER_FIELD_COORDINATOR",
+            "INFRASTRUCTURE_SUPERVISOR",
           ],
         },
       },

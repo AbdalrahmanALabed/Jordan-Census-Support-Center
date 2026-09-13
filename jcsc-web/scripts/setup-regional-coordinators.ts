@@ -8,26 +8,35 @@ import {
   REGIONAL_COORDINATORS,
   FIELD_OPERATIONS_COORDINATOR,
   RESEARCHER_FIELD_COORDINATOR,
+  INFRASTRUCTURE_SUPERVISOR,
   getCoordinatorEmailForGovernorate,
   isFieldOperationsAffectedSystem,
+  isInfrastructureAffectedSystem,
   isResearcherFieldIssue,
   resolveResearcherFieldCoordinator,
+  resolveInfrastructureSupervisor,
 } from "../src/lib/coordinator-routing";
+import { getProductionPassword } from "../prisma/production-passwords";
 
 const prisma = new PrismaClient();
 
+async function hashFor(email: string, fallback = "jcsc2026") {
+  const plain = getProductionPassword(email) ?? fallback;
+  return hash(plain, 10);
+}
+
 async function main() {
-  const passwordHash = await hash("jcsc2026", 10);
   const admin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
 
   for (const coord of REGIONAL_COORDINATORS) {
     const primaryGov = coord.governorates[0];
+    const coordHash = await hashFor(coord.email);
     await prisma.user.upsert({
       where: { email: coord.email },
       create: {
         name: coord.name,
         email: coord.email,
-        password: passwordHash,
+        password: coordHash,
         role: UserRole.SUPPORT_COORDINATOR,
         team: "منسق الدعم",
         governorate: primaryGov,
@@ -46,12 +55,13 @@ async function main() {
     console.log(`✓ ${coord.name} (${coord.email}) — ${coord.governorates.join("، ")}`);
   }
 
+  const fieldOpsHash = await hashFor(FIELD_OPERATIONS_COORDINATOR.email);
   await prisma.user.upsert({
     where: { email: FIELD_OPERATIONS_COORDINATOR.email },
     create: {
       name: FIELD_OPERATIONS_COORDINATOR.name,
       email: FIELD_OPERATIONS_COORDINATOR.email,
-      password: passwordHash,
+      password: fieldOpsHash,
       role: UserRole.FIELD_OPERATIONS_COORDINATOR,
       team: "منسق إدارة العمل الميداني",
       governorate: "عمان",
@@ -69,12 +79,13 @@ async function main() {
   });
   console.log(`✓ ${FIELD_OPERATIONS_COORDINATOR.name} (${FIELD_OPERATIONS_COORDINATOR.email})`);
 
+  const researcherHash = await hashFor(RESEARCHER_FIELD_COORDINATOR.email);
   await prisma.user.upsert({
     where: { email: RESEARCHER_FIELD_COORDINATOR.email },
     create: {
       name: RESEARCHER_FIELD_COORDINATOR.name,
       email: RESEARCHER_FIELD_COORDINATOR.email,
-      password: passwordHash,
+      password: researcherHash,
       role: UserRole.RESEARCHER_FIELD_COORDINATOR,
       team: "مشرف الدعم الفني",
       governorate: "عمان",
@@ -92,7 +103,31 @@ async function main() {
   });
   console.log(`✓ ${RESEARCHER_FIELD_COORDINATOR.name} (${RESEARCHER_FIELD_COORDINATOR.email})`);
 
-  const researcherFieldPerms = [
+  const infraHash = await hashFor(INFRASTRUCTURE_SUPERVISOR.email);
+  await prisma.user.upsert({
+    where: { email: INFRASTRUCTURE_SUPERVISOR.email },
+    create: {
+      name: INFRASTRUCTURE_SUPERVISOR.name,
+      email: INFRASTRUCTURE_SUPERVISOR.email,
+      password: infraHash,
+      role: UserRole.INFRASTRUCTURE_SUPERVISOR,
+      team: "مشرف البنية التحتية",
+      governorate: "عمان",
+      phone: "+962790000000",
+      shift: "صباحي",
+      specialtyTags: "[]",
+      directManagerId: admin?.id ?? null,
+    },
+    update: {
+      name: INFRASTRUCTURE_SUPERVISOR.name,
+      role: UserRole.INFRASTRUCTURE_SUPERVISOR,
+      team: "مشرف البنية التحتية",
+      isActive: true,
+    },
+  });
+  console.log(`✓ ${INFRASTRUCTURE_SUPERVISOR.name} (${INFRASTRUCTURE_SUPERVISOR.email})`);
+
+  const leadCoordinatorPerms = [
     "view_dashboard",
     "submit_report",
     "view_own_reports",
@@ -104,25 +139,27 @@ async function main() {
   ];
   const allPerms = await prisma.permission.findMany();
   const permByKey = Object.fromEntries(allPerms.map((p) => [p.key, p.id]));
-  for (const key of researcherFieldPerms) {
-    const permissionId = permByKey[key];
-    if (!permissionId) continue;
-    await prisma.rolePermission.upsert({
-      where: {
-        role_permissionId: {
-          role: UserRole.RESEARCHER_FIELD_COORDINATOR,
-          permissionId,
+  for (const role of [UserRole.RESEARCHER_FIELD_COORDINATOR, UserRole.INFRASTRUCTURE_SUPERVISOR] as const) {
+    for (const key of leadCoordinatorPerms) {
+      const permissionId = permByKey[key];
+      if (!permissionId) continue;
+      await prisma.rolePermission.upsert({
+        where: {
+          role_permissionId: {
+            role,
+            permissionId,
+          },
         },
-      },
-      create: {
-        role: UserRole.RESEARCHER_FIELD_COORDINATOR,
-        permissionId,
-        granted: true,
-      },
-      update: { granted: true },
-    });
+        create: {
+          role,
+          permissionId,
+          granted: true,
+        },
+        update: { granted: true },
+      });
+    }
+    console.log(`✓ صلاحيات ${role}`);
   }
-  console.log("✓ صلاحيات RESEARCHER_FIELD_COORDINATOR");
 
   const legacy = await prisma.user.findUnique({ where: { email: "coordinator@jcsc.gov.jo" } });
   if (legacy) {
@@ -148,12 +185,15 @@ async function main() {
   });
 
   const researcherFieldCoordinator = await resolveResearcherFieldCoordinator();
+  const infrastructureSupervisor = await resolveInfrastructureSupervisor();
 
   let routed = 0;
   for (const c of openCases) {
     let coordinator = null;
     if (isFieldOperationsAffectedSystem(c.affectedSystem) && fieldOpsCoordinator) {
       coordinator = fieldOpsCoordinator;
+    } else if (isInfrastructureAffectedSystem(c.affectedSystem) && infrastructureSupervisor) {
+      coordinator = infrastructureSupervisor;
     } else if (isResearcherFieldIssue(c) && researcherFieldCoordinator) {
       coordinator = researcherFieldCoordinator;
     } else {

@@ -60,6 +60,16 @@ const FALLBACK_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     "close_issues",
     "manage_users",
   ],
+  INFRASTRUCTURE_SUPERVISOR: [
+    "view_dashboard",
+    "submit_report",
+    "view_own_reports",
+    "review_reports",
+    "reject_reports",
+    "view_issues",
+    "close_issues",
+    "manage_users",
+  ],
   ADMIN: Object.keys(PERMISSION_LABELS),
   DEVELOPER: ["view_dashboard", "view_issues", "manage_issues", "view_queues"],
   /** Legacy roles — no active permissions */
@@ -114,7 +124,8 @@ export function canViewKnowledgeBase(
     isSupervisorRole(user.role) ||
     isSupportCoordinatorRole(user.role) ||
     isFieldOperationsCoordinatorRole(user.role) ||
-    isResearcherFieldCoordinatorRole(user.role)
+    isResearcherFieldCoordinatorRole(user.role) ||
+    isInfrastructureSupervisorRole(user.role)
   )
     return true;
   return userHasPermission(user, "view_issues") || userHasPermission(user, "view_dashboard");
@@ -145,6 +156,11 @@ export function isFieldOperationsCoordinatorRole(role?: UserRole | null | string
 /** منسق نظام الباحث — بلاغات فنية FIELD */
 export function isResearcherFieldCoordinatorRole(role?: UserRole | null | string): boolean {
   return role === "RESEARCHER_FIELD_COORDINATOR";
+}
+
+/** مشرف البنية التحتية — بلاغات نظام البنية التحتية */
+export function isInfrastructureSupervisorRole(role?: UserRole | null | string): boolean {
+  return role === "INFRASTRUCTURE_SUPERVISOR";
 }
 
 /** Super admin — full case review, classify, assign, users & roles */

@@ -20,6 +20,13 @@ const ALLOWED_EMAILS = new Set(
   Object.keys(PRODUCTION_PASSWORDS).map((e) => e.trim().toLowerCase())
 );
 
+/** حسابات دعم المراكز cs0001–cs9999 — لا تُحذف أبداً */
+function isProtectedProductionUser(email: string): boolean {
+  const e = email.trim().toLowerCase();
+  if (ALLOWED_EMAILS.has(e)) return true;
+  return /^cs\d{4}@jcsc\.gov\.jo$/.test(e);
+}
+
 /** أسماء رسمية للحسابات — مزامنة بعد التنظيف */
 const OFFICIAL_NAMES: Record<string, string> = {
   "admin@jcsc.gov.jo": "Super Admin",
@@ -56,7 +63,7 @@ async function clearOperationalData() {
 
 async function removeUnofficialUsers() {
   const allUsers = await prisma.user.findMany({ select: { id: true, email: true, name: true } });
-  const toRemove = allUsers.filter((u) => !ALLOWED_EMAILS.has(u.email.trim().toLowerCase()));
+  const toRemove = allUsers.filter((u) => !isProtectedProductionUser(u.email));
 
   if (toRemove.length === 0) {
     console.log("✓ لا توجد حسابات وهمية للحذف");

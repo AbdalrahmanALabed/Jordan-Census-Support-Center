@@ -7,11 +7,17 @@ import {
   recommendRouting,
   mapReportToClient,
   listReportsWithRelations,
+  getReportWithRelations,
 } from "@/lib/reports/server";
 import { prisma } from "@/lib/db";
 import { notifyCoordinator, notifySuperAdmins } from "@/lib/notifications/server";
 import { createCaseFromReport } from "@/lib/cases/server";
-import { resolveCoordinatorForReport, isFieldOperationsAffectedSystem, isResearcherAffectedSystem } from "@/lib/coordinator-routing";
+import {
+  resolveCoordinatorForReport,
+  isFieldOperationsAffectedSystem,
+  isInfrastructureAffectedSystem,
+  isResearcherAffectedSystem,
+} from "@/lib/coordinator-routing";
 import { filterItemsByFieldOpsVisibility } from "@/lib/field-ops-visibility";
 
 export async function GET(req: NextRequest) {
@@ -104,7 +110,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "عدد المتأثرين مطلوب" }, { status: 400 });
   }
 
-  const validSystems = ["CALL_CENTER", "SELF_ENUMERATION", "RESEARCHER_SYSTEM", "FIELD_OPERATIONS"];
+  const validSystems = [
+    "CALL_CENTER",
+    "SELF_ENUMERATION",
+    "RESEARCHER_SYSTEM",
+    "FIELD_OPERATIONS",
+    "INFRASTRUCTURE",
+  ];
   const system = validSystems.includes(affectedSystem) ? affectedSystem : "FIELD_OPERATIONS";
 
   const validIssueTypes = ["TECHNICAL", "FIELD"];
@@ -177,9 +189,11 @@ export async function POST(req: NextRequest) {
       await notifyCoordinator(coordinator.id, {
         title: isFieldOperationsAffectedSystem(system)
           ? "بلاغ جديد — إدارة العمل الميداني"
-          : issueType === "FIELD"
-            ? "بلاغ جديد — نظام الباحث (فني)"
-            : "بلاغ جديد — محافظتك",
+          : isInfrastructureAffectedSystem(system)
+            ? "بلاغ جديد — البنية التحتية"
+            : issueType === "FIELD"
+              ? "بلاغ جديد — نظام الباحث (فني)"
+              : "بلاغ جديد — محافظتك",
         message: `${number} — ${governorate} — ${enumeratorsAffected} مستخدم متأثر`,
         type: "report_new",
         entityType: "Report",
@@ -207,5 +221,6 @@ export async function POST(req: NextRequest) {
     details: JSON.stringify({ number, enumeratorsAffected }),
   });
 
-  return NextResponse.json(mapReportToClient(report), { status: 201 });
+  const fullReport = await getReportWithRelations(report.id);
+  return NextResponse.json(mapReportToClient(fullReport), { status: 201 });
 }

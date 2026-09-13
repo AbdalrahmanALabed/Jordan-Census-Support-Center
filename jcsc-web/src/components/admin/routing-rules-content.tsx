@@ -51,7 +51,7 @@ export function RoutingRulesContent() {
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <Badge variant="info">{CLASSIFICATION_LABELS[rule.recommendedClassification]}</Badge>
-                  <Badge variant="secondary">{PRIORITY_LABELS[rule.priority]}</Badge>
+                  <Badge variant="secondary">{PRIORITY_LABELS[rule.priority as keyof typeof PRIORITY_LABELS] ?? rule.priority}</Badge>
                 </div>
               </CardContent>
             </Card>

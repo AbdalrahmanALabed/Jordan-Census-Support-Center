@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -13,6 +13,7 @@ import {
   Phone,
   Users,
   Search,
+  Server,
   CheckCircle2,
   ArrowLeft,
   Paperclip,
@@ -38,6 +39,7 @@ import {
   CENSUS_SYSTEMS,
   censusSystemToLabel,
   RESEARCHER_ISSUE_TYPES,
+  INFRASTRUCTURE_ISSUE_EXAMPLES,
   type IssuePriority,
   type CensusSystem,
   type ResearcherIssueType,
@@ -50,18 +52,33 @@ import { submitFieldReport } from "@/lib/services/reports";
 import type { AttachmentType } from "@/lib/reports";
 import { cn } from "@/lib/utils";
 
-const QUICK_TEMPLATES = [
+const DEFAULT_QUICK_TEMPLATES = [
   "تعذّر تسجيل الدخول",
   "فشل مزامنة البيانات",
   "التطبيق يتوقف أثناء الاستخدام",
   "بيانات غير دقيقة في النظام",
 ];
 
+function getQuickTemplates(
+  affectedSystem: CensusSystem,
+  researcherIssueType: ResearcherIssueType | ""
+): string[] {
+  if (affectedSystem === "RESEARCHER_SYSTEM" && researcherIssueType) {
+    const entry = RESEARCHER_ISSUE_TYPES.find((t) => t.value === researcherIssueType);
+    return entry?.examples ?? DEFAULT_QUICK_TEMPLATES;
+  }
+  if (affectedSystem === "INFRASTRUCTURE") {
+    return [...INFRASTRUCTURE_ISSUE_EXAMPLES];
+  }
+  return DEFAULT_QUICK_TEMPLATES;
+}
+
 const SYSTEM_ICONS: Record<CensusSystem, React.ElementType> = {
   CALL_CENTER: Phone,
   SELF_ENUMERATION: Users,
   RESEARCHER_SYSTEM: Search,
   FIELD_OPERATIONS: MapPin,
+  INFRASTRUCTURE: Server,
 };
 
 function mapUploadType(type: UploadedFile["attachmentType"]): AttachmentType {
@@ -141,6 +158,11 @@ export function CreateCaseContent() {
   const [severity, setSeverity] = useState<CaseSeverity>("MEDIUM");
   const [assignedDeveloperId, setAssignedDeveloperId] = useState("");
   const [files, setFiles] = useState<UploadedFile[]>([]);
+
+  const quickTemplates = useMemo(
+    () => getQuickTemplates(affectedSystem, researcherIssueType),
+    [affectedSystem, researcherIssueType]
+  );
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -245,7 +267,7 @@ export function CreateCaseContent() {
               <div className="text-start">
                 <p className="text-xs font-bold text-muted-foreground mb-2">عبارات جاهزة</p>
                 <div className="flex flex-wrap gap-2 justify-start">
-                  {QUICK_TEMPLATES.map((t) => (
+                  {quickTemplates.map((t) => (
                     <button
                       key={t}
                       type="button"
@@ -287,8 +309,10 @@ export function CreateCaseContent() {
             title="النظام المتأثر"
             hint="اختر النظام الذي ظهرت فيه المشكلة"
           >
-            <div className="grid gap-3 sm:grid-cols-2">
-              {CENSUS_SYSTEMS.map(({ value, label }) => {
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {CENSUS_SYSTEMS.map((system) => {
+                const { value, label } = system;
+                const hint = "hint" in system ? system.hint : undefined;
                 const Icon = SYSTEM_ICONS[value];
                 const active = affectedSystem === value;
                 return (
@@ -316,6 +340,11 @@ export function CreateCaseContent() {
                     </span>
                     <span className="flex-1 min-w-0">
                       <span className="block text-sm font-black leading-snug">{label}</span>
+                      {hint && !active && (
+                        <span className="mt-0.5 block text-[11px] text-muted-foreground leading-snug line-clamp-2">
+                          {hint}
+                        </span>
+                      )}
                       {active && (
                         <span className="mt-0.5 flex items-center gap-1 text-xs font-bold text-primary">
                           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
@@ -327,11 +356,27 @@ export function CreateCaseContent() {
                 );
               })}
             </div>
+            {affectedSystem === "INFRASTRUCTURE" && (
+              <div className="mt-5 pt-5 border-t space-y-2">
+                <p className="text-sm font-black">أمثلة على بلاغات البنية التحتية</p>
+                <ul className="grid gap-2 sm:grid-cols-2 text-xs text-muted-foreground">
+                  {INFRASTRUCTURE_ISSUE_EXAMPLES.map((example) => (
+                    <li
+                      key={example}
+                      className="flex items-start gap-1.5 rounded-lg bg-muted/40 px-3 py-2"
+                    >
+                      <span className="text-primary/70 shrink-0">•</span>
+                      <span>{example}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {affectedSystem === "RESEARCHER_SYSTEM" && (
               <div className="mt-5 pt-5 border-t space-y-3">
                 <FieldLabel label="نوع المشكلة في نظام الباحث" required>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {RESEARCHER_ISSUE_TYPES.map(({ value, label }) => {
+                    {RESEARCHER_ISSUE_TYPES.map(({ value, label, description, examples }) => {
                       const active = researcherIssueType === value;
                       return (
                         <button
@@ -347,10 +392,19 @@ export function CreateCaseContent() {
                         >
                           <span className="block text-sm font-black">{label}</span>
                           <span className="mt-1 block text-xs text-muted-foreground leading-relaxed">
-                            {value === "TECHNICAL"
-                              ? "عطل تقني — يُوجّه لمنسق المحافظة"
-                              : "مشكلة فنية — تُوجّه لمشرف الدعم الفني بغض النظر عن المحافظة"}
+                            {description}
                           </span>
+                          <span className="mt-2 block text-[11px] font-bold text-muted-foreground">
+                            أمثلة:
+                          </span>
+                          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground leading-relaxed list-none">
+                            {examples.map((example) => (
+                              <li key={example} className="flex items-start gap-1.5">
+                                <span className="text-primary/70 shrink-0">•</span>
+                                <span>{example}</span>
+                              </li>
+                            ))}
+                          </ul>
                         </button>
                       );
                     })}

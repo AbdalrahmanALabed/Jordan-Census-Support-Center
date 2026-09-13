@@ -13,6 +13,7 @@ enum UserRole {
   SUPPORT_COORDINATOR
   FIELD_OPERATIONS_COORDINATOR
   RESEARCHER_FIELD_COORDINATOR
+  INFRASTRUCTURE_SUPERVISOR
   SUPPORT_MANAGER
   SUPPORT_L1
   SUPPORT_L2
@@ -186,6 +187,7 @@ model User {
   casesSolved      Case[]           @relation("CaseSolver")
   caseComments     CaseComment[]
   caseDecisions    CaseDecision[]
+  caseProcessingLocks CaseProcessingLock[]
 }
 
 model Permission {
@@ -472,6 +474,21 @@ model Case {
   timeline          CaseTimelineEvent[]
   decisions         CaseDecision[]
   attachments       CaseAttachment[]
+  processingLock    CaseProcessingLock?
+}
+
+model CaseProcessingLock {
+  caseId    String   @id
+  lockToken String
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([expiresAt])
 }
 
 model CaseComment {

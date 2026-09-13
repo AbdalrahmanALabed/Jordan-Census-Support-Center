@@ -3,6 +3,8 @@ export type UserRole =
   | "SUPPORT_SUPERVISOR"
   | "SUPPORT_COORDINATOR"
   | "FIELD_OPERATIONS_COORDINATOR"
+  | "RESEARCHER_FIELD_COORDINATOR"
+  | "INFRASTRUCTURE_SUPERVISOR"
   | "SUPPORT_MANAGER"
   | "SUPPORT_L1"
   | "SUPPORT_L2"
@@ -194,6 +196,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   SUPPORT_COORDINATOR: "منسق الدعم",
   FIELD_OPERATIONS_COORDINATOR: "منسق إدارة العمل الميداني",
   RESEARCHER_FIELD_COORDINATOR: "مشرف الدعم الفني",
+  INFRASTRUCTURE_SUPERVISOR: "مشرف البنية التحتية",
   SUPPORT_MANAGER: "مدير الدعم",
   SUPPORT_L1: "دعم L1",
   SUPPORT_L2: "دعم L2",
@@ -223,6 +226,7 @@ export const CORE_ROLES: UserRole[] = [
   "SUPPORT_COORDINATOR",
   "FIELD_OPERATIONS_COORDINATOR",
   "RESEARCHER_FIELD_COORDINATOR",
+  "INFRASTRUCTURE_SUPERVISOR",
   "SUPERVISOR",
   "DEVELOPER",
 ];
@@ -254,9 +258,24 @@ export const PRIORITY_LABELS: Record<TicketPriority, string> = {
 
 export type ResearcherIssueType = "TECHNICAL" | "FIELD";
 
-export const RESEARCHER_ISSUE_TYPES: { value: ResearcherIssueType; label: string }[] = [
-  { value: "TECHNICAL", label: "تقني" },
-  { value: "FIELD", label: "فني" },
+export const RESEARCHER_ISSUE_TYPES: {
+  value: ResearcherIssueType;
+  label: string;
+  description: string;
+  examples: string[];
+}[] = [
+  {
+    value: "TECHNICAL",
+    label: "تقني",
+    description: "عطل تقني — يُوجّه لمنسق المحافظة",
+    examples: ["الاستمارة بتعلق", "القائمة المنسدلة لا تظهر", "تختفي الإجابة"],
+  },
+  {
+    value: "FIELD",
+    label: "فني",
+    description: "مشكلة فنية — تُوجّه لمشرف الدعم الفني بغض النظر عن المحافظة",
+    examples: ["قواعد الاستمارة", "نقص أسئلة الاستمارة", "مشاكل تخص قواعد الاستمارة"],
+  },
 ];
 
 export const RESEARCHER_STATUS_LABELS: Record<ResearcherStatus, string> = {
@@ -290,12 +309,27 @@ export const GOVERNORATES = [
   "العقبة",
 ] as const;
 
+export const INFRASTRUCTURE_ISSUE_EXAMPLES = [
+  "MDM",
+  "الشبكة والإنترنت",
+  "GPS",
+  "مشاكل الكمبيوتر",
+  "مشاكل التابلت",
+] as const;
+
 /** أنظمة التعداد — يختارها دعم المراكز عند إرسال بلاغ أو حالة */
 export const CENSUS_SYSTEMS = [
   { value: "CALL_CENTER", label: "مركز اتصال", ticketPrefix: "C" },
   { value: "SELF_ENUMERATION", label: "عد ذاتي", ticketPrefix: "S" },
   { value: "RESEARCHER_SYSTEM", label: "نظام الباحث", ticketPrefix: "R" },
   { value: "FIELD_OPERATIONS", label: "إدارة العمل الميداني", ticketPrefix: "F" },
+  {
+    value: "INFRASTRUCTURE",
+    label: "البنية التحتية",
+    ticketPrefix: "I",
+    hint: "MDM، الشبكة، GPS، الكمبيوتر، التابلت",
+    examples: INFRASTRUCTURE_ISSUE_EXAMPLES,
+  },
 ] as const;
 
 export type CensusSystem = (typeof CENSUS_SYSTEMS)[number]["value"];
@@ -305,6 +339,7 @@ export const CENSUS_SYSTEM_LABELS: Record<CensusSystem, string> = {
   SELF_ENUMERATION: "عد ذاتي",
   RESEARCHER_SYSTEM: "نظام الباحث",
   FIELD_OPERATIONS: "إدارة العمل الميداني",
+  INFRASTRUCTURE: "البنية التحتية",
 };
 
 export function censusSystemToLabel(value: CensusSystem | string): string {

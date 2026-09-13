@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/audit";
 import {
   mapReportToClient,
   getReportWithRelations,
+  reportClientInclude,
 } from "@/lib/reports/server";
 import {
   classifyAndAssignCaseDb,
@@ -16,6 +17,11 @@ import { prisma } from "@/lib/db";
 import { censusSystemToLabel } from "@/lib/types";
 import { resolveAssigneeId } from "@/lib/assignees/server";
 import { canViewItemByFieldOpsRules } from "@/lib/field-ops-visibility";
+import {
+  REPORT_TRIAGE_ACTIONS,
+  releaseCaseLock,
+  requireCaseProcessingLock,
+} from "@/lib/cases/processing-lock";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -42,6 +48,19 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const canViewAll = hasApiPermission(session!, "review_reports");
   if (!canViewAll && report.supervisorId !== session!.user.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (
+    !canViewItemByFieldOpsRules(
+      {
+        affectedSystem: report.affectedSystem,
+        researcherIssueType: report.researcherIssueType,
+      },
+      session!.user.role,
+      { isOwnSubmission: report.supervisorId === session!.user.id }
+    )
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -97,6 +116,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const linkedCase = await findCaseByReportId(id);
+  const lockToken = body.lockToken as string | undefined;
+
+  if (REPORT_TRIAGE_ACTIONS.has(action)) {
+    if (!linkedCase) {
+      return NextResponse.json({ error: "لا توجد حالة مرتبطة بهذا البلاغ" }, { status: 400 });
+    }
+    const lockCheck = await requireCaseProcessingLock(linkedCase.id, lockToken);
+    if (!lockCheck.ok) {
+      return NextResponse.json({ error: lockCheck.message }, { status: 409 });
+    }
+  }
+
+  const releaseLinkedLock = async () => {
+    if (linkedCase && lockToken) await releaseCaseLock(linkedCase.id, lockToken);
+  };
 
   if (action === "confirm_and_assign") {
     const resolvedId = await resolveAssigneeId(assigneeId ?? assignedTeam ?? "");
@@ -135,7 +169,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (!assignResult && !alreadyAssigned) {
         return NextResponse.json(
           {
-            error: "فشل إسناد الحالة المرتبطة",
+            error: "تمت معالجة هذا البلاغ من جلسة أخرى — حدّث الصفحة",
             details:
               linkedCase.status !== "OPEN" &&
               linkedCase.status !== "UNDER_REVIEW" &&
@@ -143,7 +177,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
                 ? `حالة البلاغ: ${linkedCase.status} — لا يمكن الإسناد من هذه الحالة`
                 : "تعذّر تحديث الحالة",
           },
-          { status: 400 }
+          { status: 409 }
         );
       }
       if (assignResult) {
@@ -169,12 +203,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         ...(observation?.trim() && { description: observation.trim() }),
         ...(systemLabel && { affectedSystem: systemLabel }),
       },
-      include: {
-        supervisor: true,
-        reviewedBy: true,
-        convertedIssue: true,
-        attachments: true,
-      },
+      include: reportClientInclude,
     });
     await logAudit({
       action: "EDIT",
@@ -183,6 +212,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       userId: actorId,
       details: JSON.stringify({ action, assignedTeam: team, priority }),
     });
+    await releaseLinkedLock();
     return NextResponse.json(mapReportToClient(report));
   }
 
@@ -201,12 +231,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         reviewedById: actorId,
         reviewedAt: new Date(),
       },
-      include: {
-        supervisor: true,
-        reviewedBy: true,
-        convertedIssue: true,
-        attachments: true,
-      },
+      include: reportClientInclude,
     });
     await logAudit({
       action: "REJECT",
@@ -215,6 +240,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       userId: actorId,
       details: JSON.stringify({ action, reason, classification: cls }),
     });
+    await releaseLinkedLock();
     return NextResponse.json(mapReportToClient(report));
   }
 
@@ -251,12 +277,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const report = await prisma.report.update({
     where: { id },
     data,
-    include: {
-      supervisor: true,
-      reviewedBy: true,
-      convertedIssue: true,
-      attachments: true,
-    },
+    include: reportClientInclude,
   });
 
   await logAudit({

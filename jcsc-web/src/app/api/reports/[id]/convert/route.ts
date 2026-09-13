@@ -5,6 +5,7 @@ import {
   getReportWithRelations,
   mapReportToClient,
   generateIssueNumber,
+  reportClientInclude,
 } from "@/lib/reports/server";
 import { createIssueChecklist } from "@/lib/issues/server";
 import { prisma } from "@/lib/db";
@@ -74,12 +75,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       reviewedById: session!.user.id,
       reviewedAt: new Date(),
     },
-    include: {
-      supervisor: true,
-      reviewedBy: true,
-      convertedIssue: true,
-      attachments: true,
-    },
+    include: reportClientInclude,
   });
 
   if (assigneeId) {

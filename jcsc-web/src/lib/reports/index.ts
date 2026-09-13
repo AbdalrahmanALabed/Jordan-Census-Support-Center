@@ -1,4 +1,7 @@
-import type { ResearcherIssueType } from "@/lib/types";
+import type { CensusSystem, IssuePriority, ResearcherIssueType, UserRole } from "@/lib/types";
+
+/** @deprecated Use IssuePriority */
+type TicketPriority = IssuePriority;
 
 export type ReportStatus =
   | "NEW"
@@ -53,6 +56,8 @@ export interface FieldReport {
   convertedTicketNumber?: string;
   convertedIssueId?: string;
   convertedIssueNumber?: string;
+  linkedCaseId?: string;
+  linkedCaseNumber?: string;
   recommendedTeam?: string;
   recommendedPriority?: TicketPriority;
   submissionChannel?: string;

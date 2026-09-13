@@ -4,6 +4,7 @@ import {
   isSupportCoordinatorRole,
   isFieldOperationsCoordinatorRole,
   isResearcherFieldCoordinatorRole,
+  isInfrastructureSupervisorRole,
 } from "@/lib/permissions";
 
 /** منسق إدارة العمل الميداني — بلاغات نظام FIELD_OPERATIONS */
@@ -17,6 +18,18 @@ export const RESEARCHER_FIELD_COORDINATOR = {
   name: "مشرف الدعم الفني",
   email: "sanaa@jcsc.gov.jo",
 } as const;
+
+/** مشرف البنية التحتية — بلاغات MDM، شبكة، GPS، أجهزة */
+export const INFRASTRUCTURE_SUPERVISOR = {
+  name: "مشرف البنية التحتية",
+  email: "infra.supervisor@jcsc.gov.jo",
+} as const;
+
+export const INFRASTRUCTURE_SYSTEM_VALUES = [
+  "INFRASTRUCTURE",
+  "البنية التحتية",
+  "infrastructure",
+] as const;
 
 export const RESEARCHER_SYSTEM_VALUES = [
   "RESEARCHER_SYSTEM",
@@ -80,6 +93,15 @@ export function isFieldOperationsAffectedSystem(affectedSystem?: string | null):
   );
 }
 
+export function isInfrastructureAffectedSystem(affectedSystem?: string | null): boolean {
+  if (!affectedSystem?.trim()) return false;
+  const value = affectedSystem.trim();
+  return (
+    INFRASTRUCTURE_SYSTEM_VALUES.includes(value as (typeof INFRASTRUCTURE_SYSTEM_VALUES)[number]) ||
+    value.toLowerCase() === "infrastructure"
+  );
+}
+
 export function isResearcherAffectedSystem(affectedSystem?: string | null): boolean {
   if (!affectedSystem?.trim()) return false;
   const value = affectedSystem.trim();
@@ -121,6 +143,18 @@ export async function resolveFieldOperationsCoordinator() {
   return user;
 }
 
+export async function resolveInfrastructureSupervisor() {
+  const user = await prisma.user.findFirst({
+    where: {
+      email: INFRASTRUCTURE_SUPERVISOR.email,
+      role: "INFRASTRUCTURE_SUPERVISOR",
+      isActive: true,
+    },
+    select: { id: true, name: true, email: true },
+  });
+  return user;
+}
+
 export async function resolveResearcherFieldCoordinator() {
   const user = await prisma.user.findFirst({
     where: {
@@ -153,6 +187,9 @@ export async function resolveCoordinatorForReport(
   if (isFieldOperationsAffectedSystem(affectedSystem)) {
     return resolveFieldOperationsCoordinator();
   }
+  if (isInfrastructureAffectedSystem(affectedSystem)) {
+    return resolveInfrastructureSupervisor();
+  }
   if (isResearcherAffectedSystem(affectedSystem) && researcherIssueType === "FIELD") {
     return resolveResearcherFieldCoordinator();
   }
@@ -164,7 +201,8 @@ export function canViewRegionalCoordinatorUsers(role?: string | null): boolean {
     isSuperAdminRole(role as import("@/lib/types").UserRole) ||
     isSupportCoordinatorRole(role) ||
     isFieldOperationsCoordinatorRole(role) ||
-    isResearcherFieldCoordinatorRole(role)
+    isResearcherFieldCoordinatorRole(role) ||
+    isInfrastructureSupervisorRole(role)
   );
 }
 
@@ -184,6 +222,7 @@ export async function isCaseAssignedToCoordinator(
   if (!coordinator) return false;
 
   const isFieldOps = isFieldOperationsAffectedSystem(caseItem.affectedSystem);
+  const isInfra = isInfrastructureAffectedSystem(caseItem.affectedSystem);
   const isResearcherField = isResearcherFieldIssue(caseItem);
 
   if (coordinator.role === "FIELD_OPERATIONS_COORDINATOR") {
@@ -202,7 +241,15 @@ export async function isCaseAssignedToCoordinator(
     return true;
   }
 
-  if (isFieldOps || isResearcherField) return false;
+  if (coordinator.role === "INFRASTRUCTURE_SUPERVISOR") {
+    if (!isInfra) return false;
+    if (caseItem.assignedCoordinatorId) {
+      return caseItem.assignedCoordinatorId === coordinatorId;
+    }
+    return true;
+  }
+
+  if (isFieldOps || isInfra || isResearcherField) return false;
 
   if (caseItem.assignedCoordinatorId) {
     return caseItem.assignedCoordinatorId === coordinatorId;

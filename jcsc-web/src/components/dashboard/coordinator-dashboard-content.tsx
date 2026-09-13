@@ -162,7 +162,7 @@ export function CoordinatorDashboardContent() {
 
       <SectionCard
         title="بلاغات بانتظار التصنيف"
-        count={data.pendingClassification.length}
+        count={stats.pending}
         href="/cases?status=OPEN"
         icon={Inbox}
         emptyText="لا بلاغات جديدة — كل شيء مُصنَّف!"

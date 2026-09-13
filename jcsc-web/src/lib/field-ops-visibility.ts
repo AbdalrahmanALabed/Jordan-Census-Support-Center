@@ -3,14 +3,17 @@ import {
   isSuperAdminRole,
   isFieldOperationsCoordinatorRole,
   isResearcherFieldCoordinatorRole,
+  isInfrastructureSupervisorRole,
   isSupportSupervisorRole,
   isSupportCoordinatorRole,
 } from "@/lib/permissions";
 import {
   isFieldOperationsAffectedSystem,
+  isInfrastructureAffectedSystem,
   isResearcherAffectedSystem,
   isResearcherFieldIssue,
   RESEARCHER_SYSTEM_VALUES,
+  INFRASTRUCTURE_SYSTEM_VALUES,
 } from "@/lib/coordinator-routing";
 
 type WithAffectedSystem = {
@@ -29,6 +32,10 @@ export function isFieldOperationsItem(item: WithAffectedSystem): boolean {
 
 export function isResearcherFieldItem(item: WithAffectedSystem): boolean {
   return isResearcherFieldIssue(item);
+}
+
+export function isInfrastructureItem(item: WithAffectedSystem): boolean {
+  return isInfrastructureAffectedSystem(item.affectedSystem);
 }
 
 type FilterableItem = WithAffectedSystem & {
@@ -57,11 +64,16 @@ export function filterItemsByFieldOpsVisibility<T extends FilterableItem>(
     return items.filter(isResearcherFieldItem);
   }
 
+  if (isInfrastructureSupervisorRole(role)) {
+    return items.filter(isInfrastructureItem);
+  }
+
   return items.filter((item) => {
     const isFieldOps = isFieldOperationsItem(item);
+    const isInfra = isInfrastructureItem(item);
     const isResearcherField = isResearcherFieldItem(item);
 
-    if (isFieldOps || isResearcherField) {
+    if (isFieldOps || isInfra || isResearcherField) {
       if (options?.viewerId && item.assignedDeveloperId === options.viewerId) {
         return true;
       }
@@ -89,6 +101,7 @@ export function canViewItemByFieldOpsRules(
   if (isSuperAdminRole(role as UserRole)) return true;
 
   const isFieldOps = isFieldOperationsItem(item);
+  const isInfra = isInfrastructureItem(item);
   const isResearcherField = isResearcherFieldItem(item);
 
   if (isFieldOperationsCoordinatorRole(role)) {
@@ -99,7 +112,11 @@ export function canViewItemByFieldOpsRules(
     return isResearcherField;
   }
 
-  if (isFieldOps || isResearcherField) {
+  if (isInfrastructureSupervisorRole(role)) {
+    return isInfra;
+  }
+
+  if (isFieldOps || isInfra || isResearcherField) {
     if (options?.isOwnSubmission && role === "SUPERVISOR") return true;
     if (options?.isAssignedDeveloper && role === "DEVELOPER") return true;
     return false;
@@ -114,10 +131,11 @@ export function supportSupervisorCanViewCase(
   role?: UserRole | string | null
 ): boolean {
   if (!isSupportSupervisorRole(role)) return true;
-  return !isFieldOperationsItem(item) && !isResearcherFieldItem(item);
+  return !isFieldOperationsItem(item) && !isResearcherFieldItem(item) && !isInfrastructureItem(item);
 }
 
 const FIELD_OPS_VALUES = ["FIELD_OPERATIONS", "إدارة العمل الميداني", "field_operations"];
+const INFRA_VALUES = [...INFRASTRUCTURE_SYSTEM_VALUES];
 const RESEARCHER_VALUES = [...RESEARCHER_SYSTEM_VALUES];
 
 /** شرط Prisma لاستبعاد/تضمين FOM وباحث+فني في الاستعلامات */
@@ -137,10 +155,15 @@ export function fieldOpsPrismaFilter(role?: UserRole | string | null):
     };
   }
 
+  if (isInfrastructureSupervisorRole(role)) {
+    return { affectedSystem: { in: INFRA_VALUES } };
+  }
+
   if (isSupportCoordinatorRole(role) || isSupportSupervisorRole(role)) {
     return {
       AND: [
         { NOT: { affectedSystem: { in: FIELD_OPS_VALUES } } },
+        { NOT: { affectedSystem: { in: INFRA_VALUES } } },
         {
           OR: [
             { NOT: { affectedSystem: { in: RESEARCHER_VALUES } } },
@@ -155,6 +178,7 @@ export function fieldOpsPrismaFilter(role?: UserRole | string | null):
   return {
     AND: [
       { NOT: { affectedSystem: { in: FIELD_OPS_VALUES } } },
+      { NOT: { affectedSystem: { in: INFRA_VALUES } } },
       {
         OR: [
           { NOT: { affectedSystem: { in: RESEARCHER_VALUES } } },

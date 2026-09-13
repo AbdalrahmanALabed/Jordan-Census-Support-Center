@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { CaseType, CaseStatus } from "@prisma/client";
 import { requireSession, hasApiPermission } from "@/lib/api-auth";
-import { isSuperAdminRole, isSupportSupervisorRole, isSupportCoordinatorRole } from "@/lib/permissions";
+import {
+  isSuperAdminRole,
+  isSupportSupervisorRole,
+  isSupportCoordinatorRole,
+  isInfrastructureSupervisorRole,
+} from "@/lib/permissions";
 import { getManagedUserIds } from "@/lib/support-supervisor/server";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
@@ -72,7 +77,11 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  if (isSupportCoordinatorRole(session!.user.role) && !isSuperAdminRole(session!.user.role as import("@prisma/client").UserRole)) {
+  if (
+    (isSupportCoordinatorRole(session!.user.role) ||
+      isInfrastructureSupervisorRole(session!.user.role)) &&
+    !isSuperAdminRole(session!.user.role as import("@prisma/client").UserRole)
+  ) {
     assignedCoordinatorId = session!.user.id;
   }
 

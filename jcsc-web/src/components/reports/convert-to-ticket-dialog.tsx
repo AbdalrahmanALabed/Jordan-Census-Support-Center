@@ -98,7 +98,7 @@ export function ConvertToTicketDialog({
             )}
             {report.recommendedPriority && (
               <Badge variant="secondary">
-                {PRIORITY_LABELS[report.recommendedPriority]}
+                {PRIORITY_LABELS[report.recommendedPriority as keyof typeof PRIORITY_LABELS] ?? report.recommendedPriority}
               </Badge>
             )}
           </div>

@@ -89,6 +89,8 @@ export function mapReportToClient(report: Awaited<ReturnType<typeof fetchReport>
     convertedIssueNumber: report.convertedIssue?.number,
     convertedTicketId: report.convertedIssueId ?? undefined,
     convertedTicketNumber: report.convertedIssue?.number,
+    linkedCaseId: report.sourceCases?.[0]?.id,
+    linkedCaseNumber: report.sourceCases?.[0]?.number,
     recommendedTeam: report.recommendedTeam ?? undefined,
     recommendedPriority: report.recommendedPriority ?? undefined,
     submissionChannel: report.submissionChannel,
@@ -106,15 +108,18 @@ export function mapReportToClient(report: Awaited<ReturnType<typeof fetchReport>
   };
 }
 
+export const reportClientInclude = {
+  supervisor: true,
+  reviewedBy: true,
+  convertedIssue: true,
+  attachments: true,
+  sourceCases: { select: { id: true, number: true }, take: 1 },
+} as const;
+
 async function fetchReport(id: string) {
   return prisma.report.findUnique({
     where: { id },
-    include: {
-      supervisor: true,
-      reviewedBy: true,
-      convertedIssue: true,
-      attachments: true,
-    },
+    include: reportClientInclude,
   });
 }
 
@@ -125,12 +130,7 @@ export async function getReportWithRelations(id: string) {
 export async function listReportsWithRelations(where: Record<string, unknown> = {}) {
   return prisma.report.findMany({
     where,
-    include: {
-      supervisor: true,
-      reviewedBy: true,
-      convertedIssue: true,
-      attachments: true,
-    },
+    include: reportClientInclude,
     orderBy: { createdAt: "desc" },
   });
 }
@@ -159,12 +159,7 @@ export async function findSimilarReports(
       id: { not: reportId },
       status: { in: ["NEW", "UNDER_REVIEW", "CLASSIFIED", "CONVERTED"] },
     },
-    include: {
-      supervisor: true,
-      reviewedBy: true,
-      convertedIssue: true,
-      attachments: true,
-    },
+    include: reportClientInclude,
     orderBy: { createdAt: "desc" },
     take: 80,
   });

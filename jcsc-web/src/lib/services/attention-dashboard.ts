@@ -220,10 +220,8 @@ export interface CoordinatorDashboardData {
 }
 
 export async function getCoordinatorDashboard(): Promise<CoordinatorDashboardData> {
-  const [summary, pendingClassification] = await Promise.all([
-    fetchCaseSummaryStats(),
-    getCases({ status: "OPEN", limit: 50 }),
-  ]);
+  const pendingClassification = await getCases({ status: "OPEN", limit: 200 });
+  const summary = await fetchCaseSummaryStats();
 
   return {
     pendingClassification,

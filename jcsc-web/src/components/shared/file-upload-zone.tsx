@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Upload, X, ImageIcon, FileText, Loader2 } from "lucide-react";
+import { Upload, X, ImageIcon, FileText, Loader2, Camera, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { withBasePath } from "@/lib/base-path";
+import { CameraCaptureDialog } from "@/components/shared/camera-capture-dialog";
 
 export interface UploadedFile {
   url: string;
@@ -53,6 +54,8 @@ export function FileUploadZone({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [dragActive, setDragActive] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraMode, setCameraMode] = useState<"photo" | "video">("photo");
 
   async function handleFiles(list: FileList | File[] | null) {
     if (!list?.length) return;
@@ -142,6 +145,47 @@ export function FileUploadZone({
           </p>
         </div>
       </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="font-bold"
+          disabled={uploading || files.length >= maxFiles}
+          onClick={() => {
+            setCameraMode("photo");
+            setCameraOpen(true);
+          }}
+        >
+          <Camera className="h-4 w-4" />
+          التقاط صورة
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="font-bold"
+          disabled={uploading || files.length >= maxFiles}
+          onClick={() => {
+            setCameraMode("video");
+            setCameraOpen(true);
+          }}
+        >
+          <Video className="h-4 w-4" />
+          تسجيل فيديو (20 ث)
+        </Button>
+      </div>
+
+      <CameraCaptureDialog
+        open={cameraOpen}
+        onOpenChange={setCameraOpen}
+        mode={cameraMode}
+        onCaptured={(file) => {
+          setCameraOpen(false);
+          void handleFiles([file]);
+        }}
+      />
 
       {error && <p className="text-sm font-medium text-destructive">{error}</p>}
 

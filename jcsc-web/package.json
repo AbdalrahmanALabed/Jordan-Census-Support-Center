@@ -20,6 +20,7 @@
     "db:seed-center-support": "tsx scripts/seed-center-support-users.ts",
     "db:setup-users": "tsx scripts/setup-production-users.ts",
     "db:launch": "tsx scripts/setup-production-launch.ts",
+    "users:file": "tsx scripts/generate-launch-users-file.ts",
     "deploy:prod": "node scripts/deploy-production.mjs",
     "db:studio": "prisma studio",
     "test:e2e": "node scripts/e2e-full-system.mjs",

@@ -6,19 +6,23 @@
  *   npx tsx scripts/seed-center-support-users.ts --count 1000
  *   npx tsx scripts/seed-center-support-users.ts --count 1000 --refresh
  */
-import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient, UserRole } from "@prisma/client";
 import { hash } from "bcryptjs";
-import { GOVERNORATES } from "../src/lib/types";
+import {
+  CENTER_SUPPORT_EMAIL_PREFIX as EMAIL_PREFIX,
+  CENTER_SUPPORT_EMAIL_DOMAIN as EMAIL_DOMAIN,
+  CENTER_SUPPORT_NAME_PREFIX as DISPLAY_NAME_PREFIX,
+  CENTER_SUPPORT_TEAM as TEAM,
+  centerSupportEmail as emailFor,
+  centerSupportDisplayName as displayNameFor,
+  centerSupportPassword as passwordFor,
+  centerSupportGovernorate as governorateFor,
+} from "../src/lib/center-support-launch";
 
 const prisma = new PrismaClient();
 
-const TEAM = "الدعم الفني المراكز";
-const DISPLAY_NAME_PREFIX = "مركز الدعم الفني";
-const EMAIL_PREFIX = "cs";
-const EMAIL_DOMAIN = "jcsc.gov.jo";
 const SUPPORT_SUPERVISOR_EMAIL = "support-supervisor@jcsc.gov.jo";
 
 function parseArgs() {
@@ -30,29 +34,6 @@ function parseArgs() {
     if (args[i] === "--refresh") refresh = true;
   }
   return { count, refresh };
-}
-
-function emailFor(index: number): string {
-  return `${EMAIL_PREFIX}${String(index).padStart(4, "0")}@${EMAIL_DOMAIN}`;
-}
-
-function displayNameFor(index: number): string {
-  return `${DISPLAY_NAME_PREFIX} ${String(index).padStart(4, "0")}`;
-}
-
-/** كلمة مرور ثابتة لكل حساب — نفس المنطق عند إعادة التشغيل بدون --refresh */
-function passwordFor(index: number): string {
-  const padded = String(index).padStart(4, "0");
-  const suffix = createHash("sha256")
-    .update(`jcsc-center-support-v1-${index}`)
-    .digest("base64url")
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .slice(0, 5);
-  return `Jcsc@Cs${padded}${suffix}`;
-}
-
-function governorateFor(index: number): string {
-  return GOVERNORATES[(index - 1) % GOVERNORATES.length];
 }
 
 async function main() {

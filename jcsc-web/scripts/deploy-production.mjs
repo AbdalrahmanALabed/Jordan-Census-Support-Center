@@ -9,6 +9,8 @@
  *   SKIP_GIT_PULL=1        — لا تسحب من GitHub
  *   SKIP_PM2=1             — لا تعيد تحميل PM2
  *   SYNC_OFFICIAL_USERS=1  — شغّل setup-regional-coordinators بعد db push
+ *   SETUP_CENTER_SUPPORT=1 — إنشاء/تحديث حسابات cs* (1006) + --refresh
+ *   SETUP_USERS=1          — npm run db:launch (رسمي + مراكز + كلمات مرور)
  */
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -36,7 +38,15 @@ function main() {
   run("npm run db:generate", "توليد Prisma Client");
   run("npx prisma db push", "تحديث المخطط (بدون حذف بيانات)");
 
-  if (process.env.SYNC_OFFICIAL_USERS === "1") {
+  if (process.env.SETUP_USERS === "1") {
+    run("npm run db:launch", "إعداد المستخدمين الكامل (رسمي + مراكز)");
+  } else if (process.env.SETUP_CENTER_SUPPORT === "1") {
+    const count = process.env.CENTER_SUPPORT_COUNT ?? "1006";
+    run(
+      `npx tsx scripts/seed-center-support-users.ts --count ${count} --refresh`,
+      `مزامنة حسابات مراكز الدعم (${count})`
+    );
+  } else if (process.env.SYNC_OFFICIAL_USERS === "1") {
     run("npx tsx scripts/setup-regional-coordinators.ts", "مزامنة المنسقين الرسميين");
   }
 

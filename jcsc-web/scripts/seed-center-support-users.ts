@@ -12,13 +12,12 @@ import { PrismaClient, UserRole } from "@prisma/client";
 import { hash } from "bcryptjs";
 import {
   CENTER_SUPPORT_EMAIL_PREFIX as EMAIL_PREFIX,
-  CENTER_SUPPORT_EMAIL_DOMAIN as EMAIL_DOMAIN,
-  CENTER_SUPPORT_NAME_PREFIX as DISPLAY_NAME_PREFIX,
-  CENTER_SUPPORT_TEAM as TEAM,
+  DEFAULT_CENTER_SUPPORT_COUNT,
   centerSupportEmail as emailFor,
   centerSupportDisplayName as displayNameFor,
   centerSupportPassword as passwordFor,
   centerSupportGovernorate as governorateFor,
+  CENTER_SUPPORT_TEAM as TEAM,
 } from "../src/lib/center-support-launch";
 
 const prisma = new PrismaClient();
@@ -27,10 +26,12 @@ const SUPPORT_SUPERVISOR_EMAIL = "support-supervisor@jcsc.gov.jo";
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  let count = 1000;
+  let count = DEFAULT_CENTER_SUPPORT_COUNT;
   let refresh = false;
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--count" && args[i + 1]) count = Math.max(1, parseInt(args[i + 1], 10) || 1000);
+    if (args[i] === "--count" && args[i + 1]) {
+      count = Math.max(1, parseInt(args[i + 1], 10) || DEFAULT_CENTER_SUPPORT_COUNT);
+    }
     if (args[i] === "--refresh") refresh = true;
   }
   return { count, refresh };
@@ -62,13 +63,26 @@ async function main() {
     const plainPassword = passwordFor(i);
     const exists = existingEmails.has(email.toLowerCase());
 
+    const passwordHash = await hash(plainPassword, 10);
+    const mustSetPassword = !exists || refresh;
+
     if (exists && !refresh) {
+      await prisma.user.update({
+        where: { email },
+        data: {
+          name,
+          role: UserRole.SUPERVISOR,
+          team: TEAM,
+          governorate: gov,
+          directManagerId: manager?.id ?? undefined,
+          isActive: true,
+        },
+      });
       skipped++;
-      rows.push({ name, email, password: "(unchanged — use --refresh to rotate)", governorate: gov });
+      rows.push({ name, email, password: "(unchanged — use --refresh to sync Excel passwords)", governorate: gov });
       continue;
     }
 
-    const passwordHash = await hash(plainPassword, 10);
     await prisma.user.upsert({
       where: { email },
       create: {
@@ -91,7 +105,7 @@ async function main() {
         governorate: gov,
         directManagerId: manager?.id ?? undefined,
         isActive: true,
-        ...(refresh ? { password: passwordHash } : {}),
+        ...(mustSetPassword ? { password: passwordHash } : {}),
       },
     });
 

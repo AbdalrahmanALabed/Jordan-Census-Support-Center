@@ -6,6 +6,7 @@ import {
   isSupportSupervisorRole,
   isSupportCoordinatorRole,
 } from "@/lib/permissions";
+import { usesAssignedCoordinatorCaseScope } from "@/lib/coordinator-case-scope";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { sendNotification } from "@/lib/notifications/server";
@@ -65,16 +66,18 @@ export async function GET(req: NextRequest) {
   const createdById =
     (!canViewAll && canViewOwn) || mineOnly ? session!.user.id : undefined;
 
-  let managedByManagerId: string | undefined;
+  let supportSupervisorUserId: string | undefined;
   let assignedCoordinatorId: string | undefined;
 
-  if (isSupportSupervisorRole(session!.user.role)) {
-    managedByManagerId = session!.user.id;
+  const mineOnlyRequest = Boolean(createdById);
+
+  if (isSupportSupervisorRole(session!.user.role) && !mineOnlyRequest) {
+    supportSupervisorUserId = session!.user.id;
   }
 
-  // منسقو المحافظات فقط: الحالات المسندة إليهم صراحة
   if (
-    session!.user.role === "SUPPORT_COORDINATOR" &&
+    !mineOnlyRequest &&
+    usesAssignedCoordinatorCaseScope(session!.user.role) &&
     !isSuperAdminRole(session!.user.role as import("@prisma/client").UserRole)
   ) {
     assignedCoordinatorId = session!.user.id;
@@ -85,8 +88,8 @@ export async function GET(req: NextRequest) {
     caseType,
     status,
     simpleStatus: simpleStatus && simpleStatus !== "ALL" ? simpleStatus : undefined,
-    createdById: managedByManagerId ? undefined : createdById,
-    managedByManagerId,
+    createdById: supportSupervisorUserId ? undefined : createdById,
+    supportSupervisorUserId,
     assignedCoordinatorId,
     limit: limit && limit > 0 ? limit : undefined,
     role: session!.user.role,

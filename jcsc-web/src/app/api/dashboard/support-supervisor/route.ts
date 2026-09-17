@@ -28,7 +28,7 @@ export async function GET() {
   const team = await getManagedUsers(managerId);
 
   const rawCases = await listCases({
-    managedByManagerId: managerId,
+    supportSupervisorUserId: managerId,
     limit: 200,
     role: session!.user.role,
   });

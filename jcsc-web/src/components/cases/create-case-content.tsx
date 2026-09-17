@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -48,7 +48,7 @@ import { useEffectiveUser } from "@/hooks/use-effective-user";
 import { useToast } from "@/components/ui/toast";
 import { isSuperAdminRole, isSupportCoordinatorRole } from "@/lib/permissions";
 import { addCaseAttachment, createCaseManual } from "@/lib/services/cases";
-import { submitFieldReport } from "@/lib/services/reports";
+import { getCoordinatorAssigneeOptions, submitFieldReport } from "@/lib/services/reports";
 import type { AttachmentType } from "@/lib/reports";
 import { cn } from "@/lib/utils";
 
@@ -158,6 +158,13 @@ export function CreateCaseContent() {
   const [severity, setSeverity] = useState<CaseSeverity>("MEDIUM");
   const [assignedDeveloperId, setAssignedDeveloperId] = useState("");
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [assigneeUserId, setAssigneeUserId] = useState("");
+
+  const { data: coordinatorAssignees = [], isLoading: assigneesLoading } = useQuery({
+    queryKey: ["coordinator-assignees"],
+    queryFn: getCoordinatorAssigneeOptions,
+    enabled: isCoordinator && sessionStatus === "authenticated",
+  });
 
   const quickTemplates = useMemo(
     () => getQuickTemplates(affectedSystem, researcherIssueType),
@@ -194,6 +201,7 @@ export function CreateCaseContent() {
           affectedSystem === "RESEARCHER_SYSTEM" ? researcherIssueType : undefined,
         supervisorId: user?.id ?? "",
         supervisorName: user?.name ?? "مستخدم",
+        assigneeUserId: isCoordinator ? assigneeUserId : undefined,
         attachmentNames: files.map((f) => ({
           name: f.name,
           type: mapUploadType(f.attachmentType),
@@ -219,7 +227,8 @@ export function CreateCaseContent() {
       Boolean(affectedSystem) &&
       Boolean(governorate.trim()) &&
       affectedUsers >= 1 &&
-      (affectedSystem !== "RESEARCHER_SYSTEM" || Boolean(researcherIssueType));
+      (affectedSystem !== "RESEARCHER_SYSTEM" || Boolean(researcherIssueType)) &&
+      (!isCoordinator || Boolean(assigneeUserId));
 
   const selectedSystemLabel =
     CENSUS_SYSTEMS.find((s) => s.value === affectedSystem)?.label ?? "";
@@ -240,7 +249,7 @@ export function CreateCaseContent() {
           isAdmin
             ? "صِف المشكلة، حدّد النظام والأولوية، واسند للتخصص المناسب"
             : isCoordinator
-              ? "سجّل بلاغاً ميدانياً — يظهر في قائمة التصنيف للمتابعة"
+              ? "سجّل بلاغاً — يُسند للسوبر أدمن أو مشرف الدعم حسب اختيارك"
               : "صف ما حدث في الميدان — يصل البلاغ لمنسق الدعم للتصنيف"
         }
         variant="default"
@@ -473,6 +482,35 @@ export function CreateCaseContent() {
                     عدد الباحثين أو المستخدمين المتأثرين بالمشكلة
                   </p>
                 </FieldLabel>
+                {isCoordinator && (
+                  <FieldLabel label="إرسال البلاغ إلى" required>
+                    <Select
+                      value={assigneeUserId || undefined}
+                      onValueChange={setAssigneeUserId}
+                      disabled={assigneesLoading}
+                    >
+                      <SelectTrigger className="h-12 border-2 text-start">
+                        <SelectValue
+                          placeholder={
+                            assigneesLoading
+                              ? "جاري التحميل..."
+                              : "اختر السوبر أدمن أو مشرف الدعم"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent dir="rtl" align="start" position="popper" className="z-[200]">
+                        {coordinatorAssignees.map((a) => (
+                          <SelectItem key={a.id} value={a.id} className="text-base py-3">
+                            {a.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      لا يُسند البلاغ لمنسق آخر — للسوبر أدمن أو مشرف الدعم فقط
+                    </p>
+                  </FieldLabel>
+                )}
               </div>
             )}
 

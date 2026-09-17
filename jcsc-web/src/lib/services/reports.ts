@@ -179,6 +179,19 @@ export async function getRoutingRecommendation(observation: string) {
 
 
 
+export type CoordinatorAssigneeOption = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  roleLabel: string;
+  label: string;
+};
+
+export async function getCoordinatorAssigneeOptions(): Promise<CoordinatorAssigneeOption[]> {
+  return apiFetchOrThrow<CoordinatorAssigneeOption[]>("/api/reports/coordinator-assignees");
+}
+
 export async function submitFieldReport(data: {
   observation: string;
   affectedSystem: string;
@@ -190,6 +203,7 @@ export async function submitFieldReport(data: {
   researcherIssueType?: string;
   supervisorId: string;
   supervisorName: string;
+  assigneeUserId?: string;
   attachmentNames?: { name: string; type: FieldReport["attachments"][0]["type"]; url?: string }[];
 }): Promise<FieldReport> {
   return apiFetchOrThrow<FieldReport>("/api/reports", {
@@ -204,6 +218,7 @@ export async function submitFieldReport(data: {
       submissionChannel: data.submissionChannel ?? "app",
       researcherIssueType: data.researcherIssueType,
       supervisorId: data.supervisorId,
+      assigneeUserId: data.assigneeUserId,
       attachmentNames: data.attachmentNames,
     }),
   });

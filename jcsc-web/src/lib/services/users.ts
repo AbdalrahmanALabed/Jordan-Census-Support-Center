@@ -73,6 +73,21 @@ export async function updateUser(
   return mockUsers[idx];
 }
 
+export async function changeUserPasswordByAdmin(
+  userId: string,
+  newPassword: string,
+  confirmPassword: string
+): Promise<void> {
+  await apiFetchOrThrow<{ success: boolean }>(`/api/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      action: "change_password",
+      newPassword,
+      confirmPassword,
+    }),
+  });
+}
+
 export async function resetUserPassword(
   userId: string,
   password?: string

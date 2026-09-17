@@ -239,9 +239,8 @@ export function CasesHubContent() {
 
   const rawStatus = useMemo((): string | "ALL" => {
     if (urlStatus) return urlStatus;
-    if (isCoordinator && !urlSimpleStatus) return "OPEN";
     return "ALL";
-  }, [urlStatus, urlSimpleStatus, isCoordinator]);
+  }, [urlStatus]);
 
   const [search, setSearch] = useState("");
   const [caseType, setCaseType] = useState<CaseType | "ALL">("ALL");
@@ -266,9 +265,14 @@ export function CasesHubContent() {
         : getCases({
             search,
             caseType: isDev ? "BUG" : caseType,
-            simpleStatus: rawStatus !== "ALL" ? undefined : simpleStatus,
+            simpleStatus:
+              rawStatus === "CLOSED"
+                ? "CLOSED"
+                : rawStatus !== "ALL"
+                  ? undefined
+                  : simpleStatus,
             status:
-              rawStatus !== "ALL"
+              rawStatus !== "ALL" && rawStatus !== "CLOSED"
                 ? (rawStatus as import("@/lib/cases/types").CaseStatus)
                 : undefined,
             mine: isSupervisor ? true : undefined,
@@ -333,21 +337,25 @@ export function CasesHubContent() {
     );
   }, [filteredCases, isDev, user]);
 
-  const coordinatorPendingCases = useMemo(() => {
-    if (!isCoordinator) return [];
-    return sortedCases.filter((c) => caseNeedsCoordinatorReview(c.status));
-  }, [sortedCases, isCoordinator]);
-
-  const coordinatorOtherCases = useMemo(() => {
-    if (!isCoordinator) return [];
-    return sortedCases.filter((c) => !caseNeedsCoordinatorReview(c.status));
-  }, [sortedCases, isCoordinator]);
+  const coordinatorStatusCounts = useMemo(() => {
+    const base = roleFiltered.filter(
+      (c) =>
+        matchesSystemPrefixFilter(c, systemPrefix) &&
+        (isCoordinator || matchesSpecialtyFilter(c, specialtyFilter))
+    );
+    return {
+      OPEN: base.filter((c) => c.status === "OPEN").length,
+      AWAITING_APPROVAL: base.filter((c) => c.status === "AWAITING_APPROVAL").length,
+      CLOSED: base.filter((c) => toSimpleCaseStatus(c.status) === "CLOSED").length,
+      ALL: base.length,
+    };
+  }, [roleFiltered, systemPrefix, specialtyFilter, isCoordinator]);
 
   const coordinatorStats = useMemo(() => {
     if (!isCoordinator) return null;
     const today = new Date().toDateString();
     return {
-      pending: coordinatorPendingCases.length,
+      pending: coordinatorStatusCounts.OPEN,
       escalatedToday: roleFiltered.filter(
         (c) => c.status === "AWAITING_APPROVAL" && new Date(c.updatedAt).toDateString() === today
       ).length,
@@ -357,13 +365,13 @@ export function CasesHubContent() {
           new Date(c.updatedAt).toDateString() === today
       ).length,
     };
-  }, [isCoordinator, coordinatorPendingCases.length, roleFiltered]);
+  }, [isCoordinator, coordinatorStatusCounts, roleFiltered]);
 
   const hasActiveFilters =
     search.trim() !== "" ||
     (!isCoordinator && caseType !== "ALL") ||
     (!isCoordinator && simpleStatus !== "ALL") ||
-    (isCoordinator ? rawStatus !== "OPEN" : rawStatus !== "ALL") ||
+    rawStatus !== "ALL" ||
     systemPrefix !== "ALL" ||
     (!isCoordinator && specialtyFilter !== "ALL");
 
@@ -376,9 +384,7 @@ export function CasesHubContent() {
 
   const resultCount = isDev && !isSupervisor
     ? devMineCases.length + devOtherCases.length
-    : isCoordinator && coordinatorStatusValue === "ALL" && !hasActiveFilters
-      ? coordinatorPendingCases.length + coordinatorOtherCases.length
-      : sortedCases.length;
+    : sortedCases.length;
 
   const statusNavOptions = (
     Object.entries(SIMPLE_CASE_STATUS_LABELS) as [SimpleCaseStatus, string][]
@@ -397,7 +403,7 @@ export function CasesHubContent() {
   }));
 
   const pendingReviewCount = isCoordinator
-    ? coordinatorStats?.pending ?? coordinatorPendingCases.length
+    ? coordinatorStats?.pending ?? 0
     : canReviewCases && !isDev
       ? roleFiltered.filter((c) => caseNeedsSuperAdminReview(c.status)).length
       : 0;
@@ -423,20 +429,6 @@ export function CasesHubContent() {
     if (value === "ALL") router.replace("/cases");
     else router.replace(`/cases?status=${value}`);
   };
-
-  const coordinatorStatusCounts = useMemo(() => {
-    const base = roleFiltered.filter(
-      (c) =>
-        matchesSystemPrefixFilter(c, systemPrefix) &&
-        (isCoordinator || matchesSpecialtyFilter(c, specialtyFilter))
-    );
-    return {
-      OPEN: base.filter((c) => c.status === "OPEN").length,
-      AWAITING_APPROVAL: base.filter((c) => c.status === "AWAITING_APPROVAL").length,
-      CLOSED: base.filter((c) => toSimpleCaseStatus(c.status) === "CLOSED").length,
-      ALL: base.length,
-    };
-  }, [roleFiltered, systemPrefix, specialtyFilter, isCoordinator]);
 
   const getAssigneeLabel = (c: Case) => {
     if (c.assignedDeveloperName) return c.assignedDeveloperName;
@@ -683,23 +675,25 @@ export function CasesHubContent() {
       <EmptyState
         icon={ClipboardCheck}
         title={
-          rawStatus === "OPEN"
+          coordinatorStatusValue === "OPEN"
             ? "لا بلاغات بانتظار التصنيف"
             : "لا توجد حالات"
         }
         description={
           hasActiveFilters
             ? "جرّب تغيير الفلاتر أو مسحها"
-            : rawStatus === "OPEN"
+            : coordinatorStatusValue === "OPEN"
               ? "ستظهر هنا البلاغات الجديدة من دعم المراكز للتصنيف"
-              : "لم يتم العثور على حالات بهذه الفلاتر"
+              : rawStatus === "ALL" && !search.trim() && systemPrefix === "ALL"
+                ? "لا توجد بلاغات مسندة إليك حالياً"
+                : "لم يتم العثور على حالات بهذه الفلاتر"
         }
         action={
           hasActiveFilters ? (
             <Button size="lg" variant="outline" className="font-bold" onClick={clearFilters}>
               مسح الفلاتر
             </Button>
-          ) : rawStatus !== "OPEN" ? (
+          ) : coordinatorStatusValue !== "OPEN" ? (
             <Button
               size="lg"
               className="font-black"
@@ -710,30 +704,12 @@ export function CasesHubContent() {
           ) : undefined
         }
       />
-    ) : coordinatorStatusValue === "ALL" && !search.trim() && systemPrefix === "ALL" ? (
-      <div className="space-y-8">
-        {coordinatorPendingCases.length > 0 && (
-          <SectionBlock
-            title="بانتظار تصنيفك"
-            count={coordinatorPendingCases.length}
-            icon={ClipboardCheck}
-          >
-            {coordinatorPendingCases.map((c) => renderCaseRow(c))}
-          </SectionBlock>
-        )}
-        {coordinatorOtherCases.length > 0 && (
-          <SectionBlock
-            title="حالات أخرى — معاينة فقط"
-            count={coordinatorOtherCases.length}
-            icon={Eye}
-            muted
-          >
-            {coordinatorOtherCases.map((c) => renderCaseRow(c, true))}
-          </SectionBlock>
+    ) : (
+      <div className="space-y-2.5">
+        {sortedCases.map((c) =>
+          renderCaseRow(c, !caseNeedsCoordinatorReview(c.status))
         )}
       </div>
-    ) : (
-      <div className="space-y-2.5">{sortedCases.map((c) => renderCaseRow(c, !caseNeedsCoordinatorReview(c.status)))}</div>
     )
   ) : sortedCases.length === 0 ? (
     <EmptyState
@@ -782,7 +758,7 @@ export function CasesHubContent() {
             <h1 className="text-2xl md:text-3xl font-black tracking-tight">{pageTitle}</h1>
             <p className="text-sm md:text-base text-muted-foreground mt-1.5 max-w-xl font-medium">
               {isCoordinator
-                ? "صنّف البلاغات الواردة من دعم المراكز — System Bug للسوبر أدمن، أو أغلقها بسبب تقني"
+                ? "صنّف البلاغات المسندة إليك — System Bug أو تحويل للسوبر أدمن، أو إغلاق"
                 : isSupportSupervisor
                   ? "كل البلاغات التي أنشأها أفراد فريقك — مع اسم المرسل"
                 : isSupervisor

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { CaseType, KnowledgeValue } from "@prisma/client";
+import { prisma } from "@/lib/db";
 import { requireSession, hasApiPermission } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
 import {
@@ -328,18 +329,31 @@ export async function POST(
         return NextResponse.json({ error: "الحالة مسندة لهذا الشخص مسبقاً" }, { status: 400 });
       }
 
-      const canReceive = await canUserReceiveCoordinatorCase(coordinatorId, {
-        governorate: existing.governorate,
-        affectedSystem: existing.affectedSystem,
-        researcherIssueType: existing.researcherIssueType,
-        assignedCoordinatorId: existing.assignedCoordinatorId,
-        status: existing.status,
-      });
-      if (!canReceive) {
-        return NextResponse.json(
-          { error: "لا يمكن تحويل الحالة لهذا المستخدم" },
-          { status: 400 }
-        );
+      if (session!.user.role === "SUPPORT_COORDINATOR") {
+        const targetUser = await prisma.user.findUnique({
+          where: { id: coordinatorId },
+          select: { role: true, isActive: true },
+        });
+        if (!targetUser?.isActive || targetUser.role !== "ADMIN") {
+          return NextResponse.json(
+            { error: "منسق الدعم يحوّل للسوبر أدمن فقط" },
+            { status: 400 }
+          );
+        }
+      } else {
+        const canReceive = await canUserReceiveCoordinatorCase(coordinatorId, {
+          governorate: existing.governorate,
+          affectedSystem: existing.affectedSystem,
+          researcherIssueType: existing.researcherIssueType,
+          assignedCoordinatorId: existing.assignedCoordinatorId,
+          status: existing.status,
+        });
+        if (!canReceive) {
+          return NextResponse.json(
+            { error: "لا يمكن تحويل الحالة لهذا المستخدم" },
+            { status: 400 }
+          );
+        }
       }
 
       const result = await transferCaseCoordinatorDb(

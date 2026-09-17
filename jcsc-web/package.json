@@ -27,7 +27,12 @@
     "db:studio": "prisma studio",
     "test:e2e": "node scripts/e2e-full-system.mjs",
     "test:smoke": "node scripts/smoke-routes.mjs",
-    "test:ui": "node scripts/ui-visible-workflow.mjs"
+    "test:ui": "node scripts/ui-visible-workflow.mjs",
+    "test:deep-lifecycle": "node scripts/deep-lifecycle-workflow.mjs",
+    "test:ui-audit": "node scripts/deep-ui-audit.mjs",
+    "test:password": "tsx scripts/test-password-change.ts",
+    "test:password:ui": "node scripts/test-password-change-ui.mjs",
+    "test:full": "node scripts/run-full-test-suite.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.3.0",

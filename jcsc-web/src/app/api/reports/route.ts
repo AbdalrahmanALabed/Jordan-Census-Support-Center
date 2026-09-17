@@ -19,6 +19,8 @@ import {
   isResearcherAffectedSystem,
 } from "@/lib/coordinator-routing";
 import { filterItemsByFieldOpsVisibility } from "@/lib/field-ops-visibility";
+import { isSupportCoordinatorRole } from "@/lib/permissions";
+import { sendNotification } from "@/lib/notifications/server";
 
 export async function GET(req: NextRequest) {
   const { session, response } = await requireSession();
@@ -31,9 +33,11 @@ export async function GET(req: NextRequest) {
 
   const where: Record<string, unknown> = {};
 
+  const coordinatorOwnListOnly = isSupportCoordinatorRole(session!.user.role);
+
   if (supervisorOnly && hasApiPermission(session!, "view_own_reports")) {
     where.supervisorId = session!.user.id;
-  } else if (!hasApiPermission(session!, "review_reports")) {
+  } else if (!hasApiPermission(session!, "review_reports") || coordinatorOwnListOnly) {
     where.supervisorId = session!.user.id;
   }
 
@@ -66,7 +70,8 @@ export async function GET(req: NextRequest) {
 
   const isOwnList =
     supervisorOnly ||
-    !hasApiPermission(session!, "review_reports");
+    !hasApiPermission(session!, "review_reports") ||
+    coordinatorOwnListOnly;
 
   reports = filterItemsByFieldOpsVisibility(reports, session!.user.role, {
     viewerId: session!.user.id,
@@ -96,10 +101,37 @@ export async function POST(req: NextRequest) {
     researcherIssueType,
     attachmentNames = [],
     supervisorId,
+    assigneeUserId,
   } = body;
 
   if (!observation?.trim()) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  const actorRole = session!.user.role;
+  const coordinatorSubmit = isSupportCoordinatorRole(actorRole);
+  let validatedAssigneeId: string | undefined;
+
+  if (coordinatorSubmit) {
+    const assigneeId = assigneeUserId?.trim();
+    if (!assigneeId) {
+      return NextResponse.json(
+        { error: "يجب اختيار السوبر أدمن أو مشرف الدعم لاستلام البلاغ" },
+        { status: 400 }
+      );
+    }
+    const assignee = await prisma.user.findFirst({
+      where: {
+        id: assigneeId,
+        isActive: true,
+        role: { in: ["ADMIN", "SUPPORT_SUPERVISOR"] },
+      },
+      select: { id: true, name: true, role: true },
+    });
+    if (!assignee) {
+      return NextResponse.json({ error: "المستلم غير صالح" }, { status: 400 });
+    }
+    validatedAssigneeId = assignee.id;
   }
 
   if (!governorate?.trim() || governorate === "غير محدد") {
@@ -179,38 +211,68 @@ export async function POST(req: NextRequest) {
       description: observation.trim(),
       governorate,
       affectedUsers: Math.max(1, Number(enumeratorsAffected) || 1),
-      createdById: supervisorId || session!.user.id,
+      createdById: session!.user.id,
       affectedSystem: system,
       researcherIssueType: issueType ?? undefined,
+      assigneeUserId: validatedAssigneeId,
     });
 
-    const coordinator = await resolveCoordinatorForReport(governorate, system, issueType);
-    if (coordinator) {
-      await notifyCoordinator(coordinator.id, {
-        title: isFieldOperationsAffectedSystem(system)
-          ? "بلاغ جديد — إدارة العمل الميداني"
-          : isInfrastructureAffectedSystem(system)
-            ? "بلاغ جديد — البنية التحتية"
-            : issueType === "FIELD"
-              ? "بلاغ جديد — نظام الباحث (فني)"
-              : "بلاغ جديد — محافظتك",
-        message: `${number} — ${governorate} — ${enumeratorsAffected} مستخدم متأثر`,
+    if (coordinatorSubmit && validatedAssigneeId) {
+      const assignee = await prisma.user.findUnique({
+        where: { id: validatedAssigneeId },
+        select: { id: true, name: true, role: true },
+      });
+      if (assignee) {
+        await sendNotification({
+          userId: assignee.id,
+          title: "بلاغ جديد من منسق الدعم",
+          message: `${number} — ${governorate} — يحتاج مراجعتك`,
+          type: "report_new",
+          entityType: "Report",
+          entityId: report.id,
+          level: "warning",
+          actionRequired: true,
+        });
+      }
+      if (assignee?.role === "ADMIN") {
+        await notifySuperAdmins({
+          title: "بلاغ من منسق الدعم",
+          message: `${number} — ${governorate} → ${assignee.name}`,
+          type: "report_new",
+          entityType: "Report",
+          entityId: report.id,
+          level: "info",
+        });
+      }
+    } else {
+      const coordinator = await resolveCoordinatorForReport(governorate, system, issueType);
+      if (coordinator) {
+        await notifyCoordinator(coordinator.id, {
+          title: isFieldOperationsAffectedSystem(system)
+            ? "بلاغ جديد — إدارة العمل الميداني"
+            : isInfrastructureAffectedSystem(system)
+              ? "بلاغ جديد — البنية التحتية"
+              : issueType === "FIELD"
+                ? "بلاغ جديد — نظام الباحث (فني)"
+                : "بلاغ جديد — محافظتك",
+          message: `${number} — ${governorate} — ${enumeratorsAffected} مستخدم متأثر`,
+          type: "report_new",
+          entityType: "Report",
+          entityId: report.id,
+          level: "warning",
+          actionRequired: true,
+        });
+      }
+
+      await notifySuperAdmins({
+        title: "بلاغ ميداني جديد",
+        message: `${number} — ${governorate}${coordinator ? ` → ${coordinator.name}` : ""}`,
         type: "report_new",
         entityType: "Report",
         entityId: report.id,
-        level: "warning",
-        actionRequired: true,
+        level: "info",
       });
     }
-
-    await notifySuperAdmins({
-      title: "بلاغ ميداني جديد",
-      message: `${number} — ${governorate}${coordinator ? ` → ${coordinator.name}` : ""}`,
-      type: "report_new",
-      entityType: "Report",
-      entityId: report.id,
-      level: "info",
-    });
   }
 
   await logAudit({

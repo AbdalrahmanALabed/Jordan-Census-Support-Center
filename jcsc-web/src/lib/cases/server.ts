@@ -18,6 +18,7 @@ import {
   isInfrastructureAffectedSystem,
   resolveCoordinatorForReport,
 } from "@/lib/coordinator-routing";
+import { assignedCoordinatorScopeWhere } from "@/lib/coordinator-case-scope";
 import { censusSystemToLabel, normalizeCensusSystem } from "@/lib/types";
 
 const caseInclude = {
@@ -218,8 +219,8 @@ export async function listCases(filters?: {
   simpleStatus?: SimpleCaseStatus | "ALL";
   createdById?: string;
   createdByIds?: string[];
-  /** حالات أنشأها أعضاء فريق مشرف الدعم — بدون IN ضخم */
-  managedByManagerId?: string;
+  /** حالات أنشأها أعضاء فريق مشرف الدعm + المسندة إليه مباشرة */
+  supportSupervisorUserId?: string;
   assignedCoordinatorId?: string;
   limit?: number;
   role?: string | null;
@@ -231,8 +232,11 @@ export async function listCases(filters?: {
     Object.assign(where, visibilityWhere);
   }
 
-  if (filters?.managedByManagerId) {
-    where.createdBy = { directManagerId: filters.managedByManagerId };
+  if (filters?.supportSupervisorUserId) {
+    where.OR = [
+      { createdBy: { directManagerId: filters.supportSupervisorUserId } },
+      { assignedCoordinatorId: filters.supportSupervisorUserId },
+    ];
   } else if (filters?.createdByIds?.length) {
     where.createdById = { in: filters.createdByIds };
   } else if (filters?.createdById) {
@@ -278,15 +282,16 @@ function startOfToday(): Date {
   return d;
 }
 
-export async function getCaseSummaryStats(role?: string | null) {
+export async function getCaseSummaryStats(role?: string | null, userId?: string | null) {
   const today = startOfToday();
   const inProgressStatuses = caseStatusesForSimple("IN_PROGRESS");
   const solvedStatuses = caseStatusesForSimple("SOLVED");
   const closedStatuses = caseStatusesForSimple("CLOSED");
   const visibilityWhere = fieldOpsPrismaFilter(role) ?? {};
+  const assigneeScope = assignedCoordinatorScopeWhere(role, userId);
 
   const countWithVisibility = (where: Prisma.CaseWhereInput) =>
-    prisma.case.count({ where: { ...where, ...visibilityWhere } });
+    prisma.case.count({ where: { ...where, ...visibilityWhere, ...assigneeScope } });
 
   const [
     pendingCoordinator,
@@ -1010,6 +1015,8 @@ export async function createCaseFromReport(data: {
   createdById: string;
   affectedSystem?: string;
   researcherIssueType?: "TECHNICAL" | "FIELD" | null;
+  /** منسق الدعم: إسناد للسوبر أدمن أو مشرف الدعم */
+  assigneeUserId?: string | null;
 }) {
   const report = await prisma.report.findUnique({
     where: { id: data.reportId },
@@ -1028,11 +1035,43 @@ export async function createCaseFromReport(data: {
   const reportAttachments =
     report?.attachments.filter((a) => a.url && !a.url.includes("placeholder")) ?? [];
 
-  const coordinator = await resolveCoordinatorForReport(
-    data.governorate,
-    systemKey,
-    data.researcherIssueType
-  );
+  type CaseAssignee = {
+    id: string;
+    name: string;
+    role?: import("@prisma/client").UserRole;
+  };
+
+  let coordinator: CaseAssignee | null = data.assigneeUserId
+    ? await prisma.user.findFirst({
+        where: {
+          id: data.assigneeUserId,
+          isActive: true,
+          role: { in: ["ADMIN", "SUPPORT_SUPERVISOR"] },
+        },
+        select: { id: true, name: true, role: true },
+      })
+    : null;
+
+  if (!coordinator) {
+    coordinator = await resolveCoordinatorForReport(
+      data.governorate,
+      systemKey,
+      data.researcherIssueType
+    );
+  }
+
+  const assigneeLabel =
+    coordinator?.role === "ADMIN"
+      ? `${coordinator.name} — السوبر أدمن`
+      : coordinator?.role === "SUPPORT_SUPERVISOR"
+        ? `${coordinator.name} — مشرف الدعم`
+        : data.researcherIssueType === "FIELD"
+          ? `${coordinator?.name} — نظام الباحث (فني)`
+          : isInfrastructureAffectedSystem(systemKey)
+            ? `${coordinator?.name} — البنية التحتية`
+            : coordinator
+              ? `${coordinator.name} — ${data.governorate}`
+              : "";
 
   return prisma.case.create({
     data: {
@@ -1076,13 +1115,8 @@ export async function createCaseFromReport(data: {
           ...(coordinator
             ? [
                 {
-                  action: "توجيه للمنسق",
-                  details:
-                    data.researcherIssueType === "FIELD"
-                      ? `${coordinator.name} — نظام الباحث (فني)`
-                      : isInfrastructureAffectedSystem(systemKey)
-                        ? `${coordinator.name} — البنية التحتية`
-                        : `${coordinator.name} — ${data.governorate}`,
+                  action: data.assigneeUserId ? "إسناد للمراجعة" : "توجيه للمنسق",
+                  details: assigneeLabel,
                   actorName: "النظام",
                 },
               ]

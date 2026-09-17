@@ -14,6 +14,7 @@ import { getManagedUsers } from "@/lib/support-supervisor/server";
 import { canViewRegionalCoordinatorUsers } from "@/lib/coordinator-routing";
 import { normalizeEmail } from "@/lib/email";
 import { generateSecurePassword } from "@/lib/auth/passwords";
+import { validatePasswordStrength } from "@/lib/auth/password-policy";
 import type { UserRole } from "@prisma/client";
 
 async function applyUserPermissions(
@@ -195,7 +196,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Email already exists" }, { status: 409 });
   }
 
-  const plainPassword = password?.trim() || generateSecurePassword();
+  const manualPassword = password?.trim();
+  if (manualPassword) {
+    const strengthError = validatePasswordStrength(manualPassword);
+    if (strengthError) {
+      return NextResponse.json({ error: strengthError }, { status: 400 });
+    }
+  }
+  const plainPassword = manualPassword || generateSecurePassword();
   const passwordHash = await hash(plainPassword, 10);
   const canAssignPerms =
     hasApiPermission(session!, "manage_roles") ||

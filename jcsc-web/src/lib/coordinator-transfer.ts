@@ -72,6 +72,22 @@ export function formatTransferPeerLabel(user: {
   return `${user.name} — ${roleLabel}`;
 }
 
+/** منسق الدعم الإقليمي — تحويل للسوبر أدمن فقط */
+export async function listRegionalCoordinatorTransferTargets() {
+  return prisma.user.findMany({
+    where: { role: "ADMIN", isActive: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      team: true,
+      governorate: true,
+    },
+    orderBy: { name: "asc" },
+  });
+}
+
 /** جميع المنسقين/المشرفين النشطين — بدون إخفاء أي اسم */
 export async function listCoordinatorTransferPeers(_caseItem?: CoordinatorCase) {
   return prisma.user.findMany({

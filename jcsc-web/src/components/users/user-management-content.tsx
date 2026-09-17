@@ -37,10 +37,10 @@ import {
   createUser,
   updateUser,
   toggleUserActive,
-  resetUserPassword,
   updateUserPermissions,
 } from "@/lib/services/users";
 import { UserPermissionsPicker } from "@/components/users/user-permissions-picker";
+import { SetUserPasswordDialog } from "@/components/users/set-user-password-dialog";
 import { RoleManagementContent } from "@/components/admin/role-management-content";
 import { DeveloperSpecialtyBadge } from "@/components/shared/developer-specialty-badge";
 import {
@@ -61,6 +61,7 @@ import {
 } from "@/lib/support-supervisor";
 import { useEffectiveUser } from "@/hooks/use-effective-user";
 import { cn } from "@/lib/utils";
+import { PASSWORD_HINT_SUMMARY } from "@/lib/auth/password-policy";
 
 const ROLE_SELECT_OPTIONS: { value: UserRole; label: string }[] = CORE_ROLES.map((r) => ({
   value: r,
@@ -121,6 +122,7 @@ function UserManagementInner() {
   const roleFilterOptions = isSuperAdmin
     ? ROLE_SELECT_OPTIONS
     : ROLE_SELECT_OPTIONS.filter((o) => o.value !== "DEVELOPER" && o.value !== "ADMIN");
+  const [passwordTarget, setPasswordTarget] = useState<{ id: string; name: string } | null>(null);
   const [tab, setTab] = useState("list");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<UserRole | "ALL">("ALL");
@@ -216,16 +218,6 @@ function UserManagementInner() {
   const toggleMutation = useMutation({
     mutationFn: toggleUserActive,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users-manage"] }),
-  });
-
-  const resetMutation = useMutation({
-    mutationFn: (userId: string) => resetUserPassword(userId),
-    onSuccess: (newPassword) =>
-      alert(
-        newPassword
-          ? `تم إعادة تعيين كلمة المرور.\n\nكلمة المرور الجديدة: ${newPassword}`
-          : "تم إعادة تعيين كلمة المرور"
-      ),
   });
 
   const filtered = useMemo(
@@ -367,6 +359,9 @@ function UserManagementInner() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                    إن أدخلت كلمة يدوياً: {PASSWORD_HINT_SUMMARY}
+                  </p>
                 </FieldLabel>
                 <FieldLabel label="الهاتف" icon={Phone}>
                   <Input
@@ -542,7 +537,7 @@ function UserManagementInner() {
                   onCancelEdit={() => setEditingId(null)}
                   onSave={() => updateMutation.mutate()}
                   isSaving={updateMutation.isPending}
-                  onResetPassword={() => resetMutation.mutate(user.id)}
+                  onResetPassword={() => setPasswordTarget({ id: user.id, name: user.name })}
                   onToggleActive={() => toggleMutation.mutate(user.id)}
                 />
               ))}
@@ -557,6 +552,17 @@ function UserManagementInner() {
           </TabsContent>
         )}
       </Tabs>
+
+      {passwordTarget && (
+        <SetUserPasswordDialog
+          open={!!passwordTarget}
+          onOpenChange={(open) => {
+            if (!open) setPasswordTarget(null);
+          }}
+          userId={passwordTarget.id}
+          userName={passwordTarget.name}
+        />
+      )}
     </div>
   );
 }

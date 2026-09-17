@@ -373,7 +373,8 @@ async function verifyCasesPageCounts(page, roleLabel, { devFilter = false, openO
   const expectedTotal = cases.length;
   const expectedKpis = computeCaseKpis(cases);
 
-  await page.goto(`${BASE}${BP}/cases`, { waitUntil: "domcontentloaded", timeout: 30000 });
+  const casesPath = openOnly ? `${BP}/cases?status=OPEN` : `${BP}/cases`;
+  await page.goto(`${BASE}${casesPath}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await waitForPageReady(page);
 
   const resultCount = await readResultCount(page, expectedTotal);
@@ -687,7 +688,8 @@ try {
   await logout(context, page);
 
   // Step E: Developer sees assigned case
-  await login(page, ACCOUNTS.developer);
+  await logout(context, page);
+  await login(page, ACCOUNTS.developer, 5);
   const devById = await apiCall(page, "GET", `/api/cases/${caseId}`);
   const devCases = await apiCall(page, "GET", `/api/cases?search=${encodeURIComponent(`[E2E-${stamp}]`)}`);
   const devList = Array.isArray(devCases.data) ? devCases.data : [];

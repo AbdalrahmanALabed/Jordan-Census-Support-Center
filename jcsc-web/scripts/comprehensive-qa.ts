@@ -5,7 +5,12 @@
 import { PRODUCTION_PASSWORDS } from "../prisma/production-passwords";
 import { authenticateUser } from "../src/lib/authenticate-user";
 import { prisma } from "../src/lib/db";
-import { listCoordinatorTransferPeers } from "../src/lib/coordinator-transfer";
+import {
+  listCoordinatorTransferPeers,
+  listRegionalCoordinatorTransferTargets,
+} from "../src/lib/coordinator-transfer";
+import { assignedCoordinatorScopeWhere } from "../src/lib/coordinator-case-scope";
+import { getCaseSummaryStats } from "../src/lib/cases/server";
 
 const BASE = process.env.QA_BASE_URL ?? "http://localhost:3000/Support_Center";
 
@@ -113,10 +118,32 @@ async function main() {
   record("DB", "حالات OPEN", { ok: true, detail: `${openCases} حالة` });
 
   const peers = await listCoordinatorTransferPeers();
-  record("Transfer", "قائمة التحويل", {
+  record("Transfer", "قائمة التحويل الكاملة", {
     ok: peers.length === 11,
     detail: `${peers.length} منسق/مشرف (متوقع 11)`,
   });
+
+  const adminTargets = await listRegionalCoordinatorTransferTargets();
+  record("Transfer", "تحويل منسق إقليمي → سوبر أدمن فقط", {
+    ok: adminTargets.length >= 1 && adminTargets.every((u) => u.role === "ADMIN"),
+    detail: `${adminTargets.length} سوبر أدمن`,
+  });
+
+  const irbidCoord = await prisma.user.findFirst({
+    where: { email: "manal.k@jcsc.gov.jo", role: "SUPPORT_COORDINATOR" },
+    select: { id: true },
+  });
+  if (irbidCoord) {
+    const scope = assignedCoordinatorScopeWhere("SUPPORT_COORDINATOR", irbidCoord.id);
+    const assignedOpen = await prisma.case.count({
+      where: { status: "OPEN", ...scope },
+    });
+    const summary = await getCaseSummaryStats("SUPPORT_COORDINATOR", irbidCoord.id);
+    record("Coordinator", "عد OPEN مسند لإربد = summary.pendingCoordinator", {
+      ok: summary.pendingCoordinator === assignedOpen,
+      detail: `DB=${assignedOpen} summary=${summary.pendingCoordinator}`,
+    });
+  }
 
   // 3. HTTP login + pages + APIs per role
   for (const acc of ROLE_ACCOUNTS) {
@@ -173,10 +200,24 @@ async function main() {
       if (scopedCase?.id) {
         const res = await fetchAuthed(`/api/cases/${scopedCase.id}/transfer-peers`, cookie);
         if (res.ok) {
-          const data = (await res.json()) as { peers: unknown[]; total?: number };
+          const data = (await res.json()) as {
+            peers: { role?: string }[];
+            total?: number;
+          };
+          const peerCount = data.peers?.length ?? 0;
+          const allAdmin =
+            acc.role === "SUPPORT_COORDINATOR"
+              ? (data.peers ?? []).every((p) => p.role === "ADMIN")
+              : true;
           record("API", `${acc.label} transfer-peers`, {
-            ok: (data.peers?.length ?? 0) >= 9,
-            detail: `${data.peers?.length ?? 0} peers`,
+            ok:
+              acc.role === "SUPPORT_COORDINATOR"
+                ? peerCount >= 1 && allAdmin
+                : peerCount >= 9,
+            detail:
+              acc.role === "SUPPORT_COORDINATOR"
+                ? `${peerCount} admins only`
+                : `${peerCount} peers`,
           });
         } else {
           record("API", `${acc.label} transfer-peers`, {
@@ -184,6 +225,52 @@ async function main() {
             detail: res.status === 403 ? "403 — خارج النطاق (مقبول)" : `HTTP ${res.status}`,
           });
         }
+      }
+    }
+
+    if (acc.role === "SUPPORT_COORDINATOR") {
+      const assigneesRes = await fetchAuthed("/api/reports/coordinator-assignees", cookie);
+      if (assigneesRes.ok) {
+        const assignees = (await assigneesRes.json()) as { role: string }[];
+        const valid = assignees.every((a) =>
+          ["ADMIN", "SUPPORT_SUPERVISOR"].includes(a.role)
+        );
+        record("API", `${acc.label} coordinator-assignees`, {
+          ok: assignees.length >= 1 && valid,
+          detail: `${assignees.length} مستلم`,
+        });
+      } else {
+        record("API", `${acc.label} coordinator-assignees`, {
+          ok: false,
+          detail: `HTTP ${assigneesRes.status}`,
+        });
+      }
+
+      const mineRes = await fetchAuthed("/api/cases?mine=true&limit=50", cookie);
+      const mineCases = mineRes.ok ? ((await mineRes.json()) as { createdBy?: string }[]) : [];
+      const user = await prisma.user.findUnique({
+        where: { email: acc.email },
+        select: { id: true },
+      });
+      const mineOk =
+        Array.isArray(mineCases) &&
+        mineCases.every((c) => !user?.id || c.createdBy === user.id);
+      record("API", `${acc.label} cases mine=true`, {
+        ok: mineRes.ok && mineOk,
+        detail: `${Array.isArray(mineCases) ? mineCases.length : 0} حالة`,
+      });
+
+      const summaryRes = await fetchAuthed("/api/cases/summary", cookie);
+      if (summaryRes.ok && user?.id) {
+        const summary = (await summaryRes.json()) as { pendingCoordinator: number };
+        const listRes = await fetchAuthed("/api/cases?status=OPEN&limit=200", cookie);
+        const list = listRes.ok ? ((await listRes.json()) as unknown[]) : [];
+        record("API", `${acc.label} summary vs OPEN list`, {
+          ok:
+            listRes.ok &&
+            summary.pendingCoordinator === (Array.isArray(list) ? list.length : -1),
+          detail: `summary=${summary.pendingCoordinator} list=${Array.isArray(list) ? list.length : "?"}`,
+        });
       }
     }
 
@@ -204,6 +291,7 @@ async function main() {
   if (failed.length) {
     console.log("\nFAILED:");
     for (const f of failed) console.log(`  - [${f.category}] ${f.name}: ${f.detail}`);
+    process.exit(1);
   }
 }
 

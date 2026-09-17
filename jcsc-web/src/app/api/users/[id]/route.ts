@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hash } from "bcryptjs";
+import { compare, hash } from "bcryptjs";
 import { requireSession, hasApiPermission } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
@@ -9,7 +9,8 @@ import {
   filterAssignablePermissions,
   isSupportSupervisorRole,
 } from "@/lib/support-supervisor";
-import { isSupportCoordinatorRole } from "@/lib/permissions";
+import { isSupportCoordinatorRole, isSuperAdminRole } from "@/lib/permissions";
+import { passwordsMatch, validatePasswordStrength } from "@/lib/auth/password-policy";
 import { isUserManagedBy } from "@/lib/support-supervisor/server";
 import { normalizeEmail } from "@/lib/email";
 import { generateSecurePassword } from "@/lib/auth/passwords";
@@ -36,6 +37,70 @@ export async function PATCH(
     if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+  }
+
+  if (body.action === "change_password") {
+    const targetId = id;
+    const isSelf = targetId === actorId;
+    const newPassword = String(body.newPassword ?? "").trim();
+    const confirmPassword = String(body.confirmPassword ?? "").trim();
+    const currentPassword = String(body.currentPassword ?? "").trim();
+
+    if (!newPassword || !confirmPassword) {
+      return NextResponse.json({ error: "كلمة المرور الجديدة والتأكيد مطلوبان" }, { status: 400 });
+    }
+    if (!passwordsMatch(newPassword, confirmPassword)) {
+      return NextResponse.json({ error: "كلمة المرور الجديدة غير متطابقة مع التأكيد" }, { status: 400 });
+    }
+    const strengthError = validatePasswordStrength(newPassword);
+    if (strengthError) {
+      return NextResponse.json({ error: strengthError }, { status: 400 });
+    }
+
+    const target = await prisma.user.findUnique({ where: { id: targetId } });
+    if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    if (isSelf) {
+      if (!currentPassword) {
+        return NextResponse.json({ error: "أدخل كلمة المرور الحالية" }, { status: 400 });
+      }
+      const validCurrent = await compare(currentPassword, target.password);
+      if (!validCurrent) {
+        return NextResponse.json({ error: "كلمة المرور الحالية غير صحيحة" }, { status: 401 });
+      }
+    } else {
+      if (!hasApiPermission(session!, "manage_users")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      if (!isSuperAdminRole(actorRole)) {
+        if (isSupportSupervisorRole(actorRole) || isSupportCoordinatorRole(actorRole)) {
+          const allowed = await isUserManagedBy(actorId, targetId);
+          if (!allowed) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+          }
+        } else {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+      }
+    }
+
+    if (await compare(newPassword, target.password)) {
+      return NextResponse.json(
+        { error: "كلمة المرور الجديدة يجب أن تختلف عن الحالية" },
+        { status: 400 }
+      );
+    }
+
+    const passwordHash = await hash(newPassword, 10);
+    await prisma.user.update({ where: { id: targetId }, data: { password: passwordHash } });
+    await logAudit({
+      action: "EDIT",
+      entityType: "User",
+      entityId: targetId,
+      userId: actorId,
+      details: isSelf ? "password_changed_self" : "password_changed_by_admin",
+    });
+    return NextResponse.json({ success: true });
   }
 
   if (body.action === "reset_password") {

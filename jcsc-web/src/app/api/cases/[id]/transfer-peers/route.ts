@@ -7,6 +7,7 @@ import {
   isLeadTransferRole,
   isTransferPeerSelectable,
   listCoordinatorTransferPeers,
+  listRegionalCoordinatorTransferTargets,
 } from "@/lib/coordinator-transfer";
 import { ROLE_LABELS, type UserRole } from "@/lib/types";
 
@@ -43,7 +44,10 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const peers = await listCoordinatorTransferPeers();
+  const peers =
+    session!.user.role === "SUPPORT_COORDINATOR"
+      ? await listRegionalCoordinatorTransferTargets()
+      : await listCoordinatorTransferPeers();
   const viewerId = session!.user.id;
 
   return NextResponse.json({

@@ -19,6 +19,7 @@ import { getCaseTransferPeers, transferCaseCoordinator } from "@/lib/services/ca
 import type { CaseTransferPeer } from "@/lib/services/cases";
 import type { Case } from "@/lib/cases";
 import { useToast } from "@/components/ui/toast";
+import { useEffectiveUser } from "@/hooks/use-effective-user";
 
 interface CoordinatorTransferPanelProps {
   caseItem: Case;
@@ -52,6 +53,8 @@ export function CoordinatorTransferPanel({
 }: CoordinatorTransferPanelProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const user = useEffectiveUser();
+  const isRegionalCoordinator = user?.role === "SUPPORT_COORDINATOR";
   const [targetId, setTargetId] = useState("");
   const [reason, setReason] = useState("");
 
@@ -62,12 +65,16 @@ export function CoordinatorTransferPanel({
   });
 
   const groupedPeers = useMemo(() => {
+    if (isRegionalCoordinator) {
+      const admins = peers.filter((p) => p.role === "ADMIN");
+      return admins.length > 0 ? [{ role: "ADMIN", label: "السوبر أدمن", items: admins }] : [];
+    }
     return ROLE_GROUP_ORDER.map(({ role, label }) => ({
       role,
       label,
       items: peers.filter((p) => p.role === role),
     })).filter((g) => g.items.length > 0);
-  }, [peers]);
+  }, [peers, isRegionalCoordinator]);
 
   const selectablePeers = peers.filter((peer) => peer.canSelect !== false);
   const selectedPeer = peers.find((peer) => peer.id === targetId);
@@ -97,8 +104,12 @@ export function CoordinatorTransferPanel({
   return (
     <WorkflowStepCard
       step={0}
-      title="تحويل بين المنسقين/المشرفين"
-      subtitle="اختر من القائمة المنسدلة ثم اكتب سبب التحويل"
+      title={isRegionalCoordinator ? "تحويل للسوبر أدمن" : "تحويل بين المنسقين/المشرفين"}
+      subtitle={
+        isRegionalCoordinator
+          ? "أو صنِّ كـ System Bug / أغلق — التحويل للسوبر أدمن فقط"
+          : "اختر من القائمة المنسدلة ثم اكتب سبب التحويل"
+      }
       icon={ArrowLeftRight}
       tone="violet"
     >
